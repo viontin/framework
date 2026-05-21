@@ -2,7 +2,7 @@
 mod inline_macros;
 pub mod boot;
 
-pub use boot::{boot, Boot};
+pub use boot::{boot, Boot, BootContext};
 pub use viontin_framework as fw;
 pub use viontin_macros as macros;
 pub use viontin_tui as tui;

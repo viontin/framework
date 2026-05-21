@@ -50,10 +50,10 @@ impl Application {
         self
     }
 
-    pub fn run(mut self) {
+    pub fn run(&mut self) {
         let providers: Vec<Box<dyn ServiceProvider>> = std::mem::take(&mut self.providers);
-        for p in &providers { p.register(&mut self); }
-        for p in &providers { p.boot(&self); }
+        for p in &providers { p.register(self); }
+        for p in &providers { p.boot(self); }
     }
 }
 

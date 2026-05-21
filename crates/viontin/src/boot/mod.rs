@@ -1,22 +1,64 @@
 //! Boot — application builder with fluent API.
 //!
 //! Sections:
+//!   - context     (BootContext)
 //!   - struct & constructors
-//!   - providers   (provider, withProviders, withoutProvider)
-//!   - commands    (command, withCommands, withoutCommands)
-//!   - gems        (gem, withGems, withoutGems)
+//!   - entry       (entry)
+//!   - terminal    (run, serve, run_with)
+//!   - providers   (provider, withProviders, withoutProvider, withoutDefaultProviders)
+//!   - commands    (command, withCommands, withoutCommand, withoutCommands)
+//!   - gems        (gem, withGems, withoutGem, withoutGems)
 //!   - middlewares (middleware, withMiddlewares, withoutMiddlewares)
-//!   - routes      (get, post, any, ws, routes)
-//!   - terminal    (serve, run)
+//!   - routes      (routes, get, post, any, ws, ws_with_config)
 
 use std::sync::Arc;
+use viontin_framework::app::{Application, ServiceProvider};
 use viontin_framework::cli::{Command, Kernel};
+use viontin_framework::gem::{GemBinding, GemRegistry};
+use viontin_gems::GemBuilder;
 use viontin_framework::http::{Request, Response};
 use viontin_framework::middleware::{Middleware, MiddlewareChain};
-use viontin_framework::ws::{WebSocketHandler, WebSocketConfig, self, WsRouter};
-use viontin_framework::app::{Application, ServiceProvider};
 use viontin_framework::server::Router;
-use viontin_framework::gem::{GemBinding, GemRegistry};
+use viontin_framework::ws::{self, WebSocketConfig, WebSocketHandler, WsRouter, WsServer};
+
+// ──────────────────────────────────────────────
+//  BOOT CONTEXT
+// ──────────────────────────────────────────────
+
+/// Runtime context with all components initialized and ready.
+///
+/// Passed to the `entry()` callback after framework initialization,
+/// provider registration, and router finalization. Only dispatched
+/// if no CLI command was found in the process arguments.
+pub struct BootContext {
+    pub(crate) app: Application,
+    pub(crate) ws_server: WsServer,
+    pub(crate) kernel: Kernel,
+}
+
+impl BootContext {
+    /// Start the HTTP server (blocking).
+    pub fn serve(self, addr: &str) {
+        self.ws_server.run(addr).unwrap();
+    }
+
+    /// Dispatch CLI commands manually.
+    pub fn cli(self) {
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() > 1 {
+            self.kernel.run(&args).exit();
+        }
+    }
+
+    /// Consume the context and return the underlying `Application`.
+    pub fn into_inner(self) -> Application {
+        self.app
+    }
+}
+
+// ──────────────────────────────────────────────
+//  BOOT BUILDER
+// ──────────────────────────────────────────────
 
 pub fn boot() -> Boot {
     Boot {
@@ -26,6 +68,7 @@ pub fn boot() -> Boot {
         ws_router: ws::ws_router(),
         gems: GemRegistry::new(),
         middlewares: MiddlewareChain::new(),
+        entry_fn: None,
     }
 }
 
@@ -36,9 +79,79 @@ pub struct Boot {
     pub(crate) ws_router: WsRouter,
     pub(crate) gems: GemRegistry,
     pub(crate) middlewares: MiddlewareChain,
+    entry_fn: Option<Box<dyn FnOnce(BootContext) + 'static>>,
 }
 
 impl Boot {
+    // ──────────────────────────────────────────────
+    //  ENTRY
+    // ──────────────────────────────────────────────
+
+    /// Define the application entry point.
+    ///
+    /// The callback receives a [`BootContext`] with all runtime components
+    /// already initialized — providers registered, gems built, routes finalized.
+    /// It is only called when no CLI command was dispatched (argv has no args
+    /// or the first argument does not match a registered command).
+    pub fn entry<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(BootContext) + 'static,
+    {
+        self.entry_fn = Some(Box::new(f));
+        self
+    }
+
+    // ──────────────────────────────────────────────
+    //  TERMINAL
+    // ──────────────────────────────────────────────
+
+    /// Finalize and execute the application.
+    ///
+    /// 1. Run all gem build hooks (`before_build`).
+    /// 2. Register and boot all service providers.
+    /// 3. Dispatch a CLI command if `argv[1]` matches a registered command (takes priority).
+    /// 4. Finalize the router (merge registry, attach middleware, WebSocket routes).
+    /// 5. Call the `entry` callback with a ready [`BootContext`].
+    pub fn run(mut self) {
+        self.gems.before_build_all().ok();
+        self.app.run();
+
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() > 1 {
+            self.kernel.run(&args).exit();
+        }
+
+        let router = self.router.extend_from_registry();
+        let router = if !self.middlewares.is_empty() {
+            router.with_global_middleware(self.middlewares)
+        } else {
+            router
+        };
+        let ws_server = self.ws_router.attach(router);
+
+        if let Some(entry) = self.entry_fn.take() {
+            entry(BootContext {
+                app: self.app,
+                ws_server,
+                kernel: self.kernel,
+            });
+        }
+    }
+
+    /// Start the HTTP server (shortcut for `entry(|ctx| ctx.serve(addr)).run()`).
+    pub fn serve(self, addr: &str) {
+        let owned = addr.to_owned();
+        self.entry(move |ctx| ctx.serve(&owned)).run()
+    }
+
+    /// Define the entry point and run (shortcut for `entry(f).run()`).
+    pub fn run_with<F>(self, f: F)
+    where
+        F: FnOnce(BootContext) + 'static,
+    {
+        self.entry(f).run()
+    }
+
     // ──────────────────────────────────────────────
     //  PROVIDERS
     // ──────────────────────────────────────────────
@@ -97,7 +210,7 @@ impl Boot {
     //  GEMS
     // ──────────────────────────────────────────────
 
-    pub fn gem(mut self, gem: impl GemBinding + 'static) -> Self {
+    pub fn gem(mut self, gem: impl GemBinding + GemBuilder + 'static) -> Self {
         for mw in gem.gem_middlewares() { self.middlewares.add_dyn(mw); }
         for p in gem.gem_providers() { self.app = self.app.with_boxed(p); }
         for c in gem.gem_commands() { self.kernel = self.kernel.register_dyn(c); }
@@ -181,39 +294,5 @@ impl Boot {
     pub fn ws_with_config(mut self, path: &str, config: WebSocketConfig, handler: impl WebSocketHandler) -> Self {
         self.ws_router = self.ws_router.ws_with_config(path, config, handler);
         self
-    }
-
-    // ──────────────────────────────────────────────
-    //  TERMINAL
-    // ──────────────────────────────────────────────
-
-    pub fn serve(self, addr: &str) {
-        self.gems.before_build_all().ok();
-        let args: Vec<String> = std::env::args().collect();
-        self.app.run();
-        if args.len() > 1 {
-            self.kernel.run(&args).exit();
-        }
-        let mut router = self.router.extend_from_registry();
-        if !self.middlewares.is_empty() {
-            router = router.with_global_middleware(self.middlewares);
-        }
-        let server = self.ws_router.attach(router);
-        server.run(addr).unwrap();
-    }
-
-    pub fn run<F>(self, f: F)
-    where
-        F: FnOnce(),
-    {
-        if let Err(e) = self.gems.before_build_all() {
-            eprintln!("  [gems] before_build error: {}", e);
-        }
-        let args: Vec<String> = std::env::args().collect();
-        self.app.run();
-        if args.len() > 1 {
-            self.kernel.run(&args).exit();
-        }
-        f();
     }
 }
