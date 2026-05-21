@@ -31,9 +31,9 @@ use viontin_framework::ws::{self, WebSocketConfig, WebSocketHandler, WsRouter, W
 /// provider registration, and router finalization. Only dispatched
 /// if no CLI command was found in the process arguments.
 pub struct BootContext {
-    pub(crate) app: Application,
-    pub(crate) ws_server: WsServer,
-    pub(crate) kernel: Kernel,
+    pub app: Application,
+    pub ws_server: WsServer,
+    pub kernel: Kernel,
 }
 
 impl BootContext {
