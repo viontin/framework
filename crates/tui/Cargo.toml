@@ -1,0 +1,17 @@
+[package]
+name = "viontin-tui"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "[EXPERIMENTAL] Console command + prompts toolkit for Viontin CLI"
+
+[dependencies]
+viontin-framework = { path = "../framework" }
+thiserror = "2"
+terminal_size = "0.4"
+unicode-width = "0.2"
+crossterm = { version = "0.28", optional = true }
+
+[features]
+default = ["prompts"]
+prompts = ["crossterm"]

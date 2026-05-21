@@ -1,0 +1,17 @@
+[package]
+name = "viontin"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "[EXPERIMENTAL] Viontin — unified facade crate."
+
+[features]
+domain = ["viontin-framework/domain"]
+default = []
+
+[dependencies]
+viontin-framework = { path = "../framework" }
+viontin-macros = { path = "../macros" }
+viontin-tui = { path = "../tui" }
+viontin-gems = { path = "../../../gems/crates/viontin-gems" }
+glob = "0.3"

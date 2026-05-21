@@ -1,0 +1,19 @@
+[package]
+name = "viontin-framework"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "[EXPERIMENTAL] Viontin Framework — runtime implementations and all shared types"
+
+[dependencies]
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+glob = "0.3"
+viontest = { path = "../../../viontest" }
+tokio = { version = "1", features = ["net", "rt", "io-util", "sync"], optional = true }
+
+[features]
+async = ["tokio"]
+domain = []
+default = []
