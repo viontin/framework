@@ -326,6 +326,44 @@ pub fn set_connection_timeout(stream: &std::net::TcpStream, seconds: u64) {
     let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(seconds)));
 }
 
+// ── RequestIdMiddleware ──
+
+/// Middleware that attaches a unique request ID to every request.
+///
+/// The ID is generated as a timestamp-based hex string and stored
+/// in both the request headers (`X-Request-Id`) and the response
+/// headers (`X-Request-Id`). This enables request tracing across
+/// services and log correlation.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use viontin_framework::middleware::RequestId;
+///
+/// boot()
+///     .middleware(RequestId)
+///     .serve(":3000");
+/// ```
+#[derive(Debug)]
+pub struct RequestId;
+
+impl Middleware for RequestId {
+    fn handle(&self, req: &mut Request, next: &dyn Fn(&mut Request) -> Response) -> Response {
+        let id = generate_id();
+        req.headers.set("X-Request-Id", &id);
+        let mut res = next(req);
+        res.headers.set("X-Request-Id", &id);
+        res
+    }
+}
+
+fn generate_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH)
+        .unwrap_or_default().as_nanos();
+    format!("{:016x}", nanos)
+}
+
 // ── RateLimitMiddleware ──
 
 /// Middleware that applies rate limiting to requests.

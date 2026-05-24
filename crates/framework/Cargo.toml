@@ -14,10 +14,15 @@ viontest = { path = "../../../viontest" }
 tokio = { version = "1", features = ["net", "rt", "io-util", "sync"], optional = true }
 viontin-orm = { path = "../../../orm/crates/viontin-orm", optional = true }
 ureq = { version = "2", features = ["json"], optional = true }
+ctrlc = { version = "3", optional = true }
+aes-gcm = { version = "0.10", optional = true }
+sha2 = { version = "0.10", optional = true }
 
 [features]
 async = ["tokio"]
 domain = []
 orm = ["viontin-orm"]
 http-client = ["ureq"]
+shutdown = ["ctrlc"]
+aes = ["aes-gcm", "sha2"]
 default = []

@@ -8,7 +8,7 @@ description = "[EXPERIMENTAL] Viontin — unified facade crate."
 [features]
 domain = ["viontin-framework/domain"]
 orm = ["viontin-framework/orm"]
-default = []
+default = ["orm", "viontin-framework/shutdown"]
 
 [dependencies]
 viontin-framework = { path = "../framework" }

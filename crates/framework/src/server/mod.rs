@@ -171,16 +171,51 @@ fn route_params(pat: &str, req: &str) -> HashMap<String, String> {
     p
 }
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Global shutdown flag — set to true when SIGTERM/SIGINT is received.
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
+/// Check if a graceful shutdown has been requested.
+pub fn is_shutdown_requested() -> bool {
+    SHUTDOWN.load(Ordering::Relaxed)
+}
+
+/// Request graceful shutdown (can be called from signal handlers or tests).
+pub fn request_shutdown() {
+    SHUTDOWN.store(true, Ordering::Relaxed);
+}
+
 pub struct Server { router: Arc<Router>, }
 impl Server {
     pub fn new(router: Router) -> Self { Server { router: Arc::new(router) } }
 
     pub fn run(&self, addr: &str) -> IoResult<()> {
+        // Register signal handler for graceful shutdown
+        #[cfg(feature = "shutdown")]
+        {
+            if let Err(e) = ctrlc::set_handler(move || {
+                eprintln!("\n  [server] Shutdown requested...");
+                request_shutdown();
+            }) {
+                eprintln!("  [server] Warning: could not set signal handler: {}", e);
+            }
+        }
+
         let listener = TcpListener::bind(addr).map_err(|e| format!("Bind failed: {}", e))?;
+        // Set a timeout on accept so we can check the shutdown flag periodically
+        listener.set_nonblocking(true).ok();
         println!("  Server on http://{}", addr);
-        for stream in listener.incoming() {
-            match stream {
-                Ok(s) => {
+
+        loop {
+            // Check for shutdown request
+            if is_shutdown_requested() {
+                println!("  [server] Stopping accept loop...");
+                break;
+            }
+
+            match listener.accept() {
+                Ok((s, _)) => {
                     let r = self.router.clone();
                     crate::middleware::set_connection_timeout(&s, 30);
                     thread::spawn(move || {
@@ -189,9 +224,15 @@ impl Server {
                         }
                     });
                 }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    continue;
+                }
                 Err(e) => eprintln!("  [server] {}", e),
             }
         }
+
+        println!("  [server] Graceful shutdown complete.");
         Ok(())
     }
 }
