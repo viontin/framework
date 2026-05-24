@@ -179,8 +179,8 @@ fn insert_after_deps(lines: &[String], dep_line: &str) -> Vec<String> {
         result.push(line.to_string());
         if line.trim() == "[dependencies]" {
             in_deps = true;
-        } else if in_deps && !inserted {
-            if line.trim().starts_with('[') || line.trim().is_empty() {
+        } else if in_deps && !inserted
+            && (line.trim().starts_with('[') || line.trim().is_empty()) {
                 result.pop();
                 result.push(dep_line.to_string());
                 result.push(String::new());
@@ -188,7 +188,6 @@ fn insert_after_deps(lines: &[String], dep_line: &str) -> Vec<String> {
                 inserted = true;
                 in_deps = false;
             }
-        }
     }
 
     if !inserted {

@@ -41,7 +41,7 @@ impl Driver for LocalStorage {
         let dir = self.full_path(directory); let mut r = Vec::new();
         if dir.is_dir() {
             for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
-                if e.path().is_file() { if let Ok(rel) = e.path().strip_prefix(&self.root) { r.push(rel.to_string_lossy().to_string()); } }
+                if e.path().is_file() && let Ok(rel) = e.path().strip_prefix(&self.root) { r.push(rel.to_string_lossy().to_string()); }
             }
         }
         Ok(r)

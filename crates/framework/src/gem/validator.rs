@@ -17,7 +17,7 @@ pub fn validate_gem_meta(
 
     let fw = Meta::current();
     let framework_req = VersionReq::parse(&format!("^{}.{}.{}", fw.version.major, fw.version.minor, fw.version.patch))
-        .unwrap_or_else(|_| VersionReq::Any);
+        .unwrap_or(VersionReq::Any);
 
     if !framework_req.matches(version) {
         result.warning("G003", format!(
@@ -33,11 +33,10 @@ pub fn validate_gem_meta(
         result.warning("G004", format!("Unknown gem kind '{}' — using custom", kind));
     }
 
-    if let Some(url) = homepage {
-        if !url.starts_with("http://") && !url.starts_with("https://") {
+    if let Some(url) = homepage
+        && !url.starts_with("http://") && !url.starts_with("https://") {
             result.warning("G005", format!("Gem homepage '{}' is not a valid URL", url));
         }
-    }
 
     result
 }

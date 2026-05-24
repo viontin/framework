@@ -21,14 +21,14 @@ fn field_matches(pattern: &str, value: u32) -> bool {
     if pattern == "*" { return true; }
     if let Some(slash_pos) = pattern.find('/') {
         let step: u32 = pattern[slash_pos + 1..].parse().unwrap_or(1);
-        return value % step == 0;
+        return value.is_multiple_of(step);
     }
     if let Some(dash_pos) = pattern.find('-') {
         let lo: u32 = pattern[..dash_pos].parse().unwrap_or(0);
         let hi: u32 = pattern[dash_pos + 1..].parse().unwrap_or(59);
         return value >= lo && value <= hi;
     }
-    pattern.split(',').any(|p| p.trim().parse::<u32>().map_or(false, |v| v == value))
+    pattern.split(',').any(|p| p.trim().parse::<u32>() == Ok(value))
 }
 
 /// Scheduler — manages and runs scheduled tasks.

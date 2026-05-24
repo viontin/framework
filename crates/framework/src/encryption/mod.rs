@@ -182,7 +182,7 @@ mod hex {
 
     pub fn decode(s: &str) -> Result<Vec<u8>, String> {
         let s = s.trim();
-        if s.len() % 2 != 0 { return Err("Odd hex length".into()); }
+        if !s.len().is_multiple_of(2) { return Err("Odd hex length".into()); }
         let mut bytes = Vec::with_capacity(s.len() / 2);
         for chunk in s.as_bytes().chunks(2) {
             let hi = from_hex(chunk[0])?;

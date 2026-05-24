@@ -46,13 +46,13 @@ pub trait Validator: fmt::Debug + Send + Sync {
 }
 
 #[derive(Debug)]
+#[derive(Default)]
 pub struct Context {
     pub project_root: Option<String>,
     pub source_files: Vec<String>,
     pub config: Option<String>,
 }
 
-impl Default for Context { fn default() -> Self { Context { project_root: None, source_files: Vec::new(), config: None } } }
 
 pub struct ValidatorGroup { validators: Vec<Box<dyn Validator>> }
 impl std::fmt::Debug for ValidatorGroup {

@@ -17,7 +17,18 @@ pub struct SyncQueue;
 impl Driver for SyncQueue {
     fn name(&self) -> &str { "sync" }
     fn push(&self, job: Box<dyn Job>) -> Result<(), String> { job.handle() }
-    fn later(&self, _delay_secs: u64, job: Box<dyn Job>) -> Result<(), String> { job.handle() }
+    fn later(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), String> {
+        if delay_secs > 0 {
+            // Spawn a thread to wait, then execute
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(delay_secs));
+                let _ = job.handle();
+            });
+            Ok(())
+        } else {
+            job.handle()
+        }
+    }
 }
 
 #[derive(Debug)]

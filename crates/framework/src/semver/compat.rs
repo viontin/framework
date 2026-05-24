@@ -28,10 +28,10 @@ impl Compatibility {
     pub fn with_min_plugin(mut self, req: VersionReq) -> Self { self.min_plugin = Some(req); self }
     pub fn check_framework(&self, fw: &Version) -> bool { self.framework.matches(fw) }
     pub fn check_plugin(&self, plugin_version: &Version) -> bool {
-        self.min_plugin.as_ref().map_or(true, |req| req.matches(plugin_version))
+        self.min_plugin.as_ref().is_none_or(|req| req.matches(plugin_version))
     }
     pub fn check_app(&self, app_version: &Version) -> bool {
-        self.min_app.as_ref().map_or(true, |req| req.matches(app_version))
+        self.min_app.as_ref().is_none_or(|req| req.matches(app_version))
     }
     pub fn current_framework() -> Self {
         let fw = Meta::current();

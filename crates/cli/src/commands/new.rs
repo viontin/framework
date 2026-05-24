@@ -76,7 +76,7 @@ impl Command for NewCommand {
         output.info("Next:");
         output.line(&format!("  cd {}", name));
         if !dirs.is_empty() {
-            output.line(&format!("  viontin inspect"));
+            output.line(&"  viontin inspect".to_string());
         } else {
             output.line("  viontin dev");
         }

@@ -198,7 +198,7 @@ impl Spinner {
         }
         self.done.store(true, Ordering::Relaxed);
         std::thread::sleep(std::time::Duration::from_millis(100));
-        println!("\r  {} {} {}", "\x1b[32m✔\x1b[0m", self.message, "\x1b[90m".to_string() + message + "\x1b[0m");
+        println!("\r  \x1b[32m✔\x1b[0m {} {}", self.message, "\x1b[90m".to_string() + message + "\x1b[0m");
     }
 
     pub fn fail(&self, message: &str) {
@@ -208,7 +208,7 @@ impl Spinner {
         }
         self.done.store(true, Ordering::Relaxed);
         std::thread::sleep(std::time::Duration::from_millis(100));
-        eprintln!("\r  {} {} {}", "\x1b[31m✘\x1b[0m", self.message, "\x1b[90m".to_string() + message + "\x1b[0m");
+        eprintln!("\r  \x1b[31m✘\x1b[0m {} {}", self.message, "\x1b[90m".to_string() + message + "\x1b[0m");
     }
 }
 
@@ -352,6 +352,6 @@ fn supports_ansi() -> bool {
 
     #[cfg(not(windows))]
     {
-        std::env::var("TERM").map_or(false, |t| t != "dumb")
+        std::env::var("TERM").is_ok_and(|t| t != "dumb")
     }
 }

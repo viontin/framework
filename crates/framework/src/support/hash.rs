@@ -11,7 +11,7 @@ impl Hasher for SimpleHasher {
         format!("{}:{}", salt, simple_hash(&format!("{}{}", salt, value)))
     }
     fn verify(&self, value: &str, stored: &str) -> bool {
-        stored.find(':').map_or(false, |eq| { let (salt, expected) = stored.split_at(eq); simple_hash(&format!("{}{}", salt, value)) == &expected[1..] })
+        stored.find(':').is_some_and(|eq| { let (salt, expected) = stored.split_at(eq); simple_hash(&format!("{}{}", salt, value)) == expected[1..] })
     }
 }
 

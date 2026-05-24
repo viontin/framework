@@ -142,11 +142,10 @@ fn path_matches(p: &str, r: &str) -> bool {
     let rp: Vec<&str> = r.split('/').collect();
 
     // Wildcard: * matches any remaining path
-    if let Some(wild_pos) = pp.iter().position(|&s| s == "*") {
-        if pp.len() - 1 <= rp.len() {
+    if let Some(wild_pos) = pp.iter().position(|&s| s == "*")
+        && pp.len() - 1 <= rp.len() {
             return pp[..wild_pos].iter().zip(rp.iter()).all(|(a, b)| a.starts_with(':') || a == b);
         }
-    }
 
     pp.len() == rp.len() && pp.iter().zip(rp.iter()).all(|(a, b)| a.starts_with(':') || a == b)
 }
@@ -280,9 +279,8 @@ fn handle_conn(mut stream: TcpStream, router: &Router) -> IoResult<()> {
         if let Some(eq) = line.find(':') { headers.set(line[..eq].trim(), line[eq+1..].trim()); }
     }
     let mut body = Vec::new();
-    if let Some(len) = headers.content_length() {
-        if len > 0 { let mut buf = vec![0u8; len as usize]; io_err(reader.read_exact(&mut buf))?; body = buf; }
-    }
+    if let Some(len) = headers.content_length()
+        && len > 0 { let mut buf = vec![0u8; len as usize]; io_err(reader.read_exact(&mut buf))?; body = buf; }
     let request = Request::new(Method::parse(parts[0]), uri, headers, body);
     let response = router.handle(request);
     io_err(stream.write_all(&response.to_raw()))?; io_err(stream.flush())?; Ok(())

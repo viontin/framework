@@ -139,7 +139,7 @@ pub fn list_files(path: impl AsRef<Path>, ext: &str) -> Result<Vec<PathBuf>, Str
     let entries = list(path)?;
     Ok(entries
         .into_iter()
-        .filter(|p| p.is_file() && p.extension().map_or(false, |e| e == ext))
+        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == ext))
         .collect())
 }
 
@@ -190,7 +190,7 @@ pub fn find_files(dir: impl AsRef<Path>, ext: &str) -> Result<Vec<PathBuf>, Stri
     }
 
     for entry in walk(dir)? {
-        if entry.is_file() && entry.extension().map_or(false, |e| e == ext) {
+        if entry.is_file() && entry.extension().is_some_and(|e| e == ext) {
             results.push(entry);
         }
     }

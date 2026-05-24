@@ -25,9 +25,8 @@ impl SessionDriver for FileSession {
         let p = self.pf(id); if !p.exists() { return HashMap::new(); }
         if let Ok(c) = std::fs::read_to_string(&p) {
             let mut lines = c.lines(); let mut data = HashMap::new();
-            if let Some(exp_line) = lines.next() {
-                if let Ok(exp) = exp_line.trim().parse::<u64>() { if SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() > exp { std::fs::remove_file(&p).ok(); return HashMap::new(); } }
-            }
+            if let Some(exp_line) = lines.next()
+                && let Ok(exp) = exp_line.trim().parse::<u64>() && SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() > exp { std::fs::remove_file(&p).ok(); return HashMap::new(); }
             for line in lines { if let Some(eq) = line.find('=') { data.insert(line[..eq].to_string(), line[eq+1..].to_string()); } }
             return data;
         }
@@ -44,9 +43,8 @@ impl SessionDriver for FileSession {
     fn gc(&self, max_lifetime: u64) {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
         if let Ok(e) = std::fs::read_dir(&self.dir) {
-            for f in e.flatten() { if let Ok(m) = f.metadata() { if let Ok(t) = m.modified() {
-                if let Ok(d) = t.duration_since(UNIX_EPOCH) { if now > d.as_secs() + max_lifetime { let _ = std::fs::remove_file(f.path()); } }
-            }}}
+            for f in e.flatten() { if let Ok(m) = f.metadata() && let Ok(t) = m.modified()
+                && let Ok(d) = t.duration_since(UNIX_EPOCH) && now > d.as_secs() + max_lifetime { let _ = std::fs::remove_file(f.path()); }}
         }
     }
 }

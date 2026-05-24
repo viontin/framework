@@ -132,11 +132,47 @@ pub fn finalize() {
 
 // ── Handler registration (stores actual handler for the HTTP server) ──
 
-/// Register a route with its handler. Gems and service providers use this
-/// to add functional routes during the `register()` phase.
+/// Register a route with both metadata (for `inspect --routes`) and handler.
+///
+/// This is a convenience that calls both `route::register()` and
+/// `route::register_handler()` in one step.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use viontin_framework::route::{self, RouteMethod};
+/// use viontin_framework::http::Method;
+///
+/// // Single call: registers metadata + handler
+/// route::bind(Method::Get, "/users", Arc::new(users_handler), "users_handler", "src/routes.rs:10");
+/// ```
+pub fn bind(method: Method, path: &str, handler: Handler, handler_name: &str, source: &str) {
+    let rm = match &method {
+        Method::Get => RouteMethod::Get,
+        Method::Post => RouteMethod::Post,
+        Method::Put => RouteMethod::Put,
+        Method::Delete => RouteMethod::Delete,
+        Method::Patch => RouteMethod::Patch,
+        Method::Head => RouteMethod::Head,
+        Method::Options => RouteMethod::Options,
+        Method::Custom(_) => return,
+    };
+    with_registry(|r| r.register(rm, path, handler_name, source));
+    register_handler_inner(method, path, handler);
+}
+
+/// Register a route with its handler.
+///
+/// This stores the actual handler function. Combine with `route::register()`
+/// for metadata tracking, or use `route::bind()` for both.
 ///
 /// Panics if the route (method + path) was already registered with a handler.
 pub fn register_handler(method: Method, path: &str, handler: Handler) {
+    register_handler_inner(method, path, handler);
+}
+
+fn register_handler_inner(method: Method, path: &str, handler: Handler) {
     let mut h = ROUTE_HANDLERS.get_or_init(|| Mutex::new(Vec::new())).lock()
         .expect("ROUTE_HANDLERS mutex poisoned");
     if h.iter().any(|(m, p, _)| m == &method && p == path) {

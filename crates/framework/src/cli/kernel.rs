@@ -131,10 +131,10 @@ impl Kernel {
     fn print_command_help(&self, signature: &str, description: &str, output: &Output) {
         let sig = Signature::parse(signature);
 
-        output.line(&format!("DESCRIPTION:"));
+        output.line("DESCRIPTION:");
         output.line(&format!("  {}", description));
         output.line("");
-        output.line(&format!("USAGE:"));
+        output.line("USAGE:");
         output.line(&format!("  viontin {}", signature));
 
         if !sig.arguments.is_empty() {

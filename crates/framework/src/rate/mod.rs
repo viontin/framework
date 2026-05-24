@@ -62,8 +62,8 @@ impl RateLimiterDriver for TokenBucketLimiter {
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(0);
 
-        if hits >= max_attempts {
-            if let Some(reset) = self.cache.get(&reset_key)
+        if hits >= max_attempts
+            && let Some(reset) = self.cache.get(&reset_key)
                 .and_then(|v| v.parse::<u64>().ok()) {
                 if self.now() >= reset {
                     self.cache.delete(&cache_key);
@@ -72,7 +72,6 @@ impl RateLimiterDriver for TokenBucketLimiter {
                     return false;
                 }
             }
-        }
 
         let new_hits = hits + 1;
         self.cache.set(&cache_key, &new_hits.to_string(), Some(decay_seconds));
@@ -101,7 +100,7 @@ impl RateLimiterDriver for TokenBucketLimiter {
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(0);
         let now = self.now();
-        if reset > now { reset - now } else { 0 }
+        reset.saturating_sub(now)
     }
 
     fn hits(&self, key: &str) -> u64 {
@@ -188,7 +187,7 @@ pub fn init(limiter: RateLimiter) {
 }
 
 fn global() -> &'static RateLimiter {
-    GLOBAL.get_or_init(|| RateLimiter::memory())
+    GLOBAL.get_or_init(RateLimiter::memory)
 }
 
 pub fn attempt<F, T>(key: &str, max_attempts: u64, decay_seconds: u64, f: F) -> Result<T, ()>

@@ -68,15 +68,12 @@ fn get_src_mtime(dir: &std::path::Path) -> u64 {
     let mut latest = 0u64;
     if let Ok(entries) = std::fs::read_dir(&src) {
         for entry in entries.flatten() {
-            if let Ok(meta) = entry.metadata() {
-                if let Ok(m) = meta.modified() {
-                    if let Ok(d) = m.duration_since(std::time::UNIX_EPOCH) {
-                        if d.as_secs() > latest {
+            if let Ok(meta) = entry.metadata()
+                && let Ok(m) = meta.modified()
+                    && let Ok(d) = m.duration_since(std::time::UNIX_EPOCH)
+                        && d.as_secs() > latest {
                             latest = d.as_secs();
                         }
-                    }
-                }
-            }
         }
     }
     latest

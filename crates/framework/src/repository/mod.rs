@@ -117,20 +117,89 @@ pub trait Repository<M: Entity>: std::fmt::Debug + Send + Sync {
 
     #[cfg(feature = "orm")]
     fn _query(&self) -> QueryScoped<'_, M, Self> where Self: Sized {
-        QueryScoped { _marker: ::std::marker::PhantomData }
+        QueryScoped::new(self)
     }
 }
 
 /// Scoped query builder for chaining additional conditions.
+///
+/// Builds a query using `viontin_orm::QueryBuilder` internally and maps
+/// results through the repository's `from_row()`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let admins = repo.query()
+///     .where_eq("role", "admin")
+///     .where_eq("active", true)
+///     .order_by("name", "asc")
+///     .all()?;
+/// ```
 #[cfg(feature = "orm")]
 pub struct QueryScoped<'a, M: Entity, R: Repository<M> + 'a> {
-    _marker: ::std::marker::PhantomData<&'a (M, R)>,
+    repo: &'a R,
+    conn: &'a dyn Connection,
+    qb: viontin_orm::QueryBuilder<'a>,
+    _marker: ::std::marker::PhantomData<M>,
 }
 
 #[cfg(feature = "orm")]
 impl<'a, M: Entity, R: Repository<M>> QueryScoped<'a, M, R> {
-    pub fn where_eq(self, _col: &str, _val: impl Into<Value>) -> Self { self }
-    pub fn all(&self) -> Result<Vec<M>, String> { Ok(vec![]) }
-    pub fn first(&self) -> Result<Option<M>, String> { Ok(None) }
-    pub fn count(&self) -> Result<u64, String> { Ok(0) }
+    pub fn where_eq(mut self, col: &str, val: impl Into<Value>) -> Self {
+        self.qb = self.qb.where_eq(col, val);
+        self
+    }
+
+    pub fn where_gt(mut self, col: &str, val: impl Into<Value>) -> Self {
+        self.qb = self.qb.where_gt(col, val);
+        self
+    }
+
+    pub fn where_null(mut self, col: &str) -> Self {
+        self.qb = self.qb.where_null(col);
+        self
+    }
+
+    pub fn order_by(mut self, col: &str, dir: &str) -> Self {
+        self.qb = self.qb.order_by(col, dir);
+        self
+    }
+
+    pub fn limit(mut self, n: u64) -> Self {
+        self.qb = self.qb.limit(n);
+        self
+    }
+
+    pub fn offset(mut self, n: u64) -> Self {
+        self.qb = self.qb.offset(n);
+        self
+    }
+
+    pub fn all(&self) -> Result<Vec<M>, String> {
+        self.qb.get()?.into_iter().map(|r| self.repo.from_row(&r)).collect()
+    }
+
+    pub fn first(&self) -> Result<Option<M>, String> {
+        let rows = self.qb.clone().limit(1).get()?;
+        rows.into_iter().next().map(|r| self.repo.from_row(&r)).transpose()
+    }
+
+    pub fn count(&self) -> Result<u64, String> {
+        self.qb.count()
+    }
+}
+
+#[cfg(feature = "orm")]
+impl<'a, M: Entity, R: Repository<M>> QueryScoped<'a, M, R> {
+    fn new(repo: &'a R) -> Self {
+        use viontin_orm::QueryBuilder;
+        let conn = repo.connection();
+        let tbl = repo.tbl();
+        QueryScoped {
+            repo,
+            conn,
+            qb: QueryBuilder::table(conn, &tbl),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
 }

@@ -24,12 +24,11 @@ impl FileCache {
     pub fn new(dir: impl Into<PathBuf>) -> Self { let dir = dir.into(); std::fs::create_dir_all(&dir).ok(); FileCache { dir } }
     fn path_for(&self, key: &str) -> PathBuf { self.dir.join(format!("{}.cache", key.replace(|c: char| !c.is_alphanumeric() && c != '-' && c != '_', "_"))) }
     fn is_expired(path: &PathBuf) -> bool {
-        if let Ok(c) = std::fs::read_to_string(path) {
-            if let Some(exp) = c.lines().next().and_then(|l| l.trim().parse::<u64>().ok()) {
+        if let Ok(c) = std::fs::read_to_string(path)
+            && let Some(exp) = c.lines().next().and_then(|l| l.trim().parse::<u64>().ok()) {
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
                 return now > exp;
             }
-        }
         false
     }
 }
@@ -45,7 +44,7 @@ impl CacheDriver for FileCache {
         std::fs::write(&p, format!("{}\n{}", exp, value)).ok();
     }
     fn delete(&self, key: &str) { let _ = std::fs::remove_file(self.path_for(key)); }
-    fn clear(&self) { if let Ok(e) = std::fs::read_dir(&self.dir) { for f in e.flatten() { if f.path().extension().map_or(false, |e| e == "cache") { let _ = std::fs::remove_file(f.path()); } } } }
+    fn clear(&self) { if let Ok(e) = std::fs::read_dir(&self.dir) { for f in e.flatten() { if f.path().extension().is_some_and(|e| e == "cache") { let _ = std::fs::remove_file(f.path()); } } } }
     fn has(&self, key: &str) -> bool { let p = self.path_for(key); p.exists() && !Self::is_expired(&p) }
     fn increment(&self, key: &str, amount: i64) -> i64 {
         let val = self.get(key).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0) + amount;

@@ -24,21 +24,18 @@ pub trait FormRequest: std::fmt::Debug + Send + Sync {
             for rule in &parts {
                 match (*rule).splitn(2, ':').collect::<Vec<&str>>().as_slice() {
                     ["required"] => {
-                        if value.is_none() || value.as_deref() == Some("") {
+                        if value.is_none() || value == Some("") {
                             errors.push(format!("{} is required", field));
                         }
                     }
                     ["min", n] => {
-                        if let Some(v) = value {
-                            if let Ok(min) = n.parse::<usize>() {
-                                if v.len() < min { errors.push(format!("{} must be at least {} characters", field, min)); }
-                            }
-                        }
+                        if let Some(v) = value
+                            && let Ok(min) = n.parse::<usize>()
+                                && v.len() < min { errors.push(format!("{} must be at least {} characters", field, min)); }
                     }
                     ["email"] => {
-                        if let Some(v) = value {
-                            if !v.contains('@') || !v.contains('.') { errors.push(format!("{} must be a valid email", field)); }
-                        }
+                        if let Some(v) = value
+                            && (!v.contains('@') || !v.contains('.')) { errors.push(format!("{} must be a valid email", field)); }
                     }
                     _ => {}
                 }
@@ -65,9 +62,9 @@ pub trait FormRequest: std::fmt::Debug + Send + Sync {
 
 fn extract_field<'a>(body: &'a str, field: &str) -> Option<&'a str> {
     for pair in body.split('&') {
-        let mut parts = pair.splitn(2, '=');
-        let key = parts.next()?;
-        let val = parts.next()?;
+        let (key, val) = pair.split_once('=')?;
+        
+        
         if key == field { return Some(val); }
     }
     None

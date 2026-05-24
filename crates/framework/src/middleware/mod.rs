@@ -185,16 +185,16 @@ impl CorsMiddleware {
     fn apply_headers(&self, res: &mut Response) {
         let origin = self.allowed_origins.join(", ");
         res.headers.set("Access-Control-Allow-Origin", &origin);
-        res.headers.set("Access-Control-Allow-Methods", &self.allowed_methods.join(", "));
-        res.headers.set("Access-Control-Allow-Headers", &self.allowed_headers.join(", "));
+        res.headers.set("Access-Control-Allow-Methods", self.allowed_methods.join(", "));
+        res.headers.set("Access-Control-Allow-Headers", self.allowed_headers.join(", "));
         if !self.expose_headers.is_empty() {
-            res.headers.set("Access-Control-Expose-Headers", &self.expose_headers.join(", "));
+            res.headers.set("Access-Control-Expose-Headers", self.expose_headers.join(", "));
         }
         if self.allow_credentials {
             res.headers.set("Access-Control-Allow-Credentials", "true");
         }
         if let Some(age) = self.max_age {
-            res.headers.set("Access-Control-Max-Age", &age.to_string());
+            res.headers.set("Access-Control-Max-Age", age.to_string());
         }
     }
 }
@@ -405,7 +405,7 @@ impl Middleware for RateLimitMiddleware {
         if crate::rate::too_many_attempts(&key, self.max_attempts) {
             let retry_after = crate::rate::available_in(&key);
             let mut res = Response::html("Too Many Requests")
-                .with_header("Retry-After", &retry_after.to_string());
+                .with_header("Retry-After", retry_after.to_string());
             res.status = StatusCode(429);
             return res;
         }

@@ -139,13 +139,8 @@ impl Input {
                 }
 
                 let val = found.or_else(|| opt.default.clone());
-                return match val {
-                    Some(v) => Some(
-                        v.parse::<T>()
-                            .map_err(|_| format!("Failed to parse option '{}'", name)),
-                    ),
-                    None => None,
-                };
+                return val.map(|v| v.parse::<T>()
+                            .map_err(|_| format!("Failed to parse option '{}'", name)));
             }
         }
 

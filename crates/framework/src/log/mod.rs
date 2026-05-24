@@ -67,7 +67,7 @@ fn timestamp() -> String {
     let d = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
     // ISO 8601-ish format: YYYY-MM-DDTHH:MM:SSZ
     let secs = d % 86400; let days = d / 86400;
-    let y = (days as i64 - 719468) as i64;
+    let y = days as i64 - 719468 ;
     let era = if y >= 0 { y } else { y - 146096 } / 146097;
     let doe = y - era * 146097;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;

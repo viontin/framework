@@ -33,14 +33,14 @@ impl Command for InspectCommand {
         let root_name = current_dir.file_name().unwrap_or_default().to_string_lossy();
         let mut lines: Vec<String> = Vec::new();
         lines.push(format!(" {}", root_name));
-        lines.push(format!(" └── src"));
+        lines.push(" └── src".to_string());
 
         if filtered.is_empty() {
             let main_rs = current_dir.join("src").join("main.rs");
             if main_rs.exists() {
-                lines.push(format!("     └── main.rs"));
+                lines.push("     └── main.rs".to_string());
             } else {
-                lines.push(format!("     └── (empty)"));
+                lines.push("     └── (empty)".to_string());
             }
         }
 
@@ -49,7 +49,7 @@ impl Command for InspectCommand {
             let branch = if last_mod { "└──" } else { "├──" };
             let child_prefix = if last_mod { "    " } else { "│   " };
 
-            let count = if module.files.len() > 0 {
+            let count = if !module.files.is_empty() {
                 format!(" ({} file{})", module.files.len(), if module.files.len() == 1 { "" } else { "s" })
             } else {
                 String::new()
@@ -181,7 +181,7 @@ fn scan_sub_files(dir: &std::path::Path) -> Vec<String> {
             if name == "domain.rs" || name == "port.rs" || name == "mod.rs" { continue; }
             if path.is_dir() {
                 names.push(format!("{}/", name));
-            } else if path.extension().map_or(false, |e| e == "rs") {
+            } else if path.extension().is_some_and(|e| e == "rs") {
                 names.push(name);
             }
         }

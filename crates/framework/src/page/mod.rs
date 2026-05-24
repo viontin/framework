@@ -15,7 +15,7 @@ pub struct Page<T: Clone> {
 
 impl<T: Clone> Page<T> {
     pub fn new(items: Vec<T>, total: u64, page: u64, per_page: u64) -> Self {
-        let last_page = if per_page == 0 { 0 } else { (total + per_page - 1) / per_page };
+        let last_page = if per_page == 0 { 0 } else { total.div_ceil(per_page) };
         Page {
             items,
             total,

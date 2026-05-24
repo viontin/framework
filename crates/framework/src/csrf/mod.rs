@@ -31,6 +31,7 @@ use crate::session::Session;
 
 /// Manages CSRF token lifecycle — generation, validation, and storage.
 #[derive(Debug)]
+#[derive(Default)]
 pub struct CsrfManager {
     config: CsrfConfig,
 }
@@ -64,7 +65,7 @@ impl CsrfManager {
 
     /// Validate a token against what's stored in session.
     pub fn validate(&self, session: &Session, token: &str) -> bool {
-        session.peek("_csrf_token").map_or(false, |stored| {
+        session.peek("_csrf_token").is_some_and(|stored| {
             // Constant-time comparison to prevent timing attacks
             if stored.len() != token.len() { return false; }
             let mut result = 0u8;
@@ -80,17 +81,12 @@ impl CsrfManager {
         if self.config.excluded_paths.iter().any(|e| path.starts_with(e)) {
             return false;
         }
-        self.config.protected_methods.iter().any(|m| *m == method)
+        self.config.protected_methods.contains(&method)
     }
 
     pub fn config(&self) -> &CsrfConfig { &self.config }
 }
 
-impl Default for CsrfManager {
-    fn default() -> Self {
-        CsrfManager { config: CsrfConfig::default() }
-    }
-}
 
 /// Simple hex encoding without external deps.
 mod hex {

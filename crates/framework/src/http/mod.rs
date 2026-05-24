@@ -126,7 +126,7 @@ impl Response {
     pub fn with_header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self { self.headers.set(key, value); self }
     pub fn cookie(mut self, cookie: Cookie) -> Self { self.headers.set("set-cookie", cookie.to_header_string()); self }
     pub fn remove_cookie(mut self, name: &str) -> Self {
-        self.headers.set("set-cookie", &format!("{}=; Max-Age=0; Path=/; HttpOnly", name));
+        self.headers.set("set-cookie", format!("{}=; Max-Age=0; Path=/; HttpOnly", name));
         self
     }
 }

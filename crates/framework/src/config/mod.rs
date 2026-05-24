@@ -47,12 +47,11 @@ impl Default for ConfigRepository { fn default() -> Self { Self::new() } }
 fn resolve_env(val: &mut ConfigValue) {
     match val {
         ConfigValue::Array(arr) if arr.len() == 2 => {
-            if let ConfigValue::String(s) = &arr[0] {
-                if let Some(key) = s.strip_prefix("env:") {
+            if let ConfigValue::String(s) = &arr[0]
+                && let Some(key) = s.strip_prefix("env:") {
                     *val = match std::env::var(key) { Ok(v) => auto_type(&v), Err(_) => arr[1].clone() };
                     return;
                 }
-            }
             for item in arr.iter_mut() { resolve_env(item); }
         }
         ConfigValue::Table(t) => { for v in t.values_mut() { resolve_env(v); } }
@@ -78,7 +77,7 @@ impl ConfigLoader {
             if d.exists() {
                 for e in std::fs::read_dir(d).map_err(|e| e.to_string())?.flatten() {
                     let p = e.path();
-                    if p.extension().map_or(true, |e| e != "json") { continue; }
+                    if p.extension().is_none_or(|e| e != "json") { continue; }
                     let name = p.file_stem().and_then(|s| s.to_str()).ok_or_else(|| "Invalid filename".to_string())?;
                     let content = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
                     self.repository.load_json(name, &content)?;

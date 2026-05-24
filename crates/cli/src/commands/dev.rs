@@ -54,7 +54,7 @@ impl Command for DevCommand {
                     Ok(notify::DebouncedEvent::Write(p))
                     | Ok(notify::DebouncedEvent::Create(p))
                     | Ok(notify::DebouncedEvent::Remove(p)) => {
-                        if p.extension().map_or(false, |e| e == "rs") {
+                        if p.extension().is_some_and(|e| e == "rs") {
                             let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
                             let _ = tx.send(name);
                         }

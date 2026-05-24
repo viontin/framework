@@ -104,12 +104,11 @@ impl Command for MakeScaffoldCommand {
             if !mf.exists() {
                 std::fs::write(&mf, format!("pub mod {};\n", snake)).ok();
                 output.success(&format!("Created: {}", mf.display()));
-            } else if !mod_has_entry(&mf, &snake) {
-                if let Ok(c) = std::fs::read_to_string(&mf) {
+            } else if !mod_has_entry(&mf, &snake)
+                && let Ok(c) = std::fs::read_to_string(&mf) {
                     std::fs::write(&mf, format!("{}\npub mod {};\n", c.trim_end(), snake)).ok();
                     output.success(&format!("Updated: {}", mf.display()));
                 }
-            }
         }
 
         output.line("");
@@ -156,7 +155,7 @@ fn scaffold_domain(current_dir: &std::path::Path, pascal: &str, snake: &str, for
 
     let mod_rs = domain_dir.join("mod.rs");
     if !mod_rs.exists() || force {
-        let content = format!("pub mod domain;\npub mod port;\n");
+        let content = "pub mod domain;\npub mod port;\n".to_string();
         std::fs::write(&mod_rs, content).ok();
         output.success(&format!("Created: {}", mod_rs.display()));
     }
@@ -165,12 +164,11 @@ fn scaffold_domain(current_dir: &std::path::Path, pascal: &str, snake: &str, for
     if !domain_parent_mod.exists() {
         std::fs::write(&domain_parent_mod, format!("pub mod {snake};\n")).ok();
         output.success(&format!("Created: {}", domain_parent_mod.display()));
-    } else if !mod_has_entry(&domain_parent_mod, snake) {
-        if let Ok(c) = std::fs::read_to_string(&domain_parent_mod) {
+    } else if !mod_has_entry(&domain_parent_mod, snake)
+        && let Ok(c) = std::fs::read_to_string(&domain_parent_mod) {
             std::fs::write(&domain_parent_mod, format!("{}\npub mod {};\n", c.trim_end(), snake)).ok();
             output.success(&format!("Updated: {}", domain_parent_mod.display()));
         }
-    }
 
     output.line("");
     output.info(&hint_domain(pascal, snake));
@@ -180,7 +178,7 @@ fn scaffold_domain(current_dir: &std::path::Path, pascal: &str, snake: &str, for
 
 fn mod_has_entry(mod_file: &Path, name: &str) -> bool {
     if let Ok(c) = std::fs::read_to_string(mod_file) {
-        c.lines().any(|l| l.trim() == &format!("pub mod {};", name))
+        c.lines().any(|l| l.trim() == format!("pub mod {};", name))
     } else { false }
 }
 
@@ -302,10 +300,10 @@ impl Notification for {pascal} {{
 }
 
 fn tpl_query(_pascal: &str, _snake: &str) -> String {
-    format!(r##"pub fn execute() -> Result<Vec<String>, String> {{
+    r##"pub fn execute() -> Result<Vec<String>, String> {
     Ok(vec![])
-}}
-"##)
+}
+"##.to_string()
 }
 
 fn tpl_module(pascal: &str, snake: &str) -> String {
@@ -375,22 +373,22 @@ impl {pascal} {{
 }
 
 fn tpl_entity(_pascal: &str, _snake: &str) -> String {
-    format!(r##"/// Domain entity.
+    r##"/// Domain entity.
 ///
 /// Entities have identity and can change over time.
 /// Unlike value objects, two entities with the same field values
 /// are NOT equal — they are distinguished by their ID.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Entity {{
+pub struct Entity {
     pub id: String,
-}}
+}
 
-impl Entity {{
-    pub fn new(id: &str) -> Self {{
-        Entity {{ id: id.into() }}
-    }}
-}}
-"##)
+impl Entity {
+    pub fn new(id: &str) -> Self {
+        Entity { id: id.into() }
+    }
+}
+"##.to_string()
 }
 
 fn tpl_value_object(pascal: &str, _snake: &str) -> String {
@@ -577,7 +575,7 @@ impl {p} {{
     }}
 }}
 "##),
-    usage: |_p, _| format!("Use with: Router middleware chain"),
+    usage: |_p, _| "Use with: Router middleware chain".to_string(),
     is_domain: false,
     ext: "rs",
 };
@@ -758,7 +756,7 @@ pub static ENTITY: ScaffoldType = ScaffoldType {
     desc: "Scaffold a new domain entity (DDD)",
     dir: "domain",
     template: tpl_entity,
-    usage: |_p, _s| format!("Entity with identity — use as building block within a domain"),
+    usage: |_p, _s| "Entity with identity — use as building block within a domain".to_string(),
     is_domain: false,
     ext: "rs",
 };

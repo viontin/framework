@@ -78,7 +78,7 @@ impl JsonTranslator {
 
             for file in files.flatten() {
                 let file_path = file.path();
-                if file_path.extension().map_or(true, |e| e != "json") {
+                if file_path.extension().is_none_or(|e| e != "json") {
                     continue;
                 }
 
@@ -94,7 +94,7 @@ impl JsonTranslator {
                     .map_err(|e| format!("Invalid JSON in {}: {}", file_path.display(), e))?;
 
                 let locale_map = self.translations.entry(locale.clone())
-                    .or_insert_with(HashMap::new);
+                    .or_default();
 
                 for (key, value) in parsed {
                     let full_key = format!("{}.{}", file_stem, key);
@@ -114,19 +114,16 @@ impl JsonTranslator {
 
     fn resolve(&self, key: &str) -> Option<&String> {
         // Try current locale first
-        if let Some(locale_map) = self.translations.get(&self.locale) {
-            if let Some(value) = locale_map.get(key) {
+        if let Some(locale_map) = self.translations.get(&self.locale)
+            && let Some(value) = locale_map.get(key) {
                 return Some(value);
             }
-        }
         // Try fallback locale
-        if self.fallback != self.locale {
-            if let Some(locale_map) = self.translations.get(&self.fallback) {
-                if let Some(value) = locale_map.get(key) {
+        if self.fallback != self.locale
+            && let Some(locale_map) = self.translations.get(&self.fallback)
+                && let Some(value) = locale_map.get(key) {
                     return Some(value);
                 }
-            }
-        }
         None
     }
 

@@ -218,11 +218,10 @@ fn walk_rs_files(dir: &std::path::Path, callback: &mut dyn FnMut(&std::path::Pat
             let path = entry.path();
             if path.is_dir() {
                 walk_rs_files(&path, callback);
-            } else if path.extension().map_or(false, |e| e == "rs") {
-                if let Ok(content) = std::fs::read_to_string(&path) {
+            } else if path.extension().is_some_and(|e| e == "rs")
+                && let Ok(content) = std::fs::read_to_string(&path) {
                     callback(&path, &content);
                 }
-            }
         }
     }
 }
