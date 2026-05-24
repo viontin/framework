@@ -79,6 +79,7 @@ impl WsServer {
                 Ok(s) => {
                     let routes = routes.clone();
                     let router = router.clone();
+                    crate::middleware::set_connection_timeout(&s, 30);
                     thread::spawn(move || {
                         if let Err(e) = handle_conn(s, &router, &routes) {
                             eprintln!("  [ws] {}", e);

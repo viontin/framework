@@ -182,6 +182,7 @@ impl Server {
             match stream {
                 Ok(s) => {
                     let r = self.router.clone();
+                    crate::middleware::set_connection_timeout(&s, 30);
                     thread::spawn(move || {
                         if let Err(e) = handle_conn(s, &r) {
                             eprintln!("  [server] {}", e);

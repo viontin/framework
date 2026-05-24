@@ -278,6 +278,14 @@ impl Boot {
         self
     }
 
+    /// Enable built-in health check endpoints at `/healthz` and `/readyz`.
+    pub fn health(self) -> Self {
+        use viontin_framework::http::Response;
+        self
+        .get("/healthz", |_| Response::text("ok").with_header("content-type", "text/plain"))
+        .get("/readyz", |_| Response::text("ready").with_header("content-type", "text/plain"))
+    }
+
     // ──────────────────────────────────────────────
     //  ROUTES
     // ──────────────────────────────────────────────
