@@ -53,6 +53,7 @@ fn main() {
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::ENTITY })
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::VALUE_OBJECT })
         // Architecture Patterns (RSC / MVC)
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::PROVIDER })
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::SERVICE })
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::REPOSITORY })
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::VIEW })

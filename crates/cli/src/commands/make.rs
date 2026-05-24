@@ -72,6 +72,7 @@ impl Command for MakeScaffoldCommand {
             current_dir.join("src").join(self.scaffold.dir)
         };
         let file_ext = if self.scaffold.ext.is_empty() { "rs" } else { self.scaffold.ext };
+
         let file_name = if is_module { "mod.rs".to_string() } else { format!("{}.{}", snake, file_ext) };
         let content = (self.scaffold.template)(&pascal, &snake);
         let file_path = target_dir.join(&file_name);
@@ -409,6 +410,40 @@ impl {pascal} {{
     }}
 }}
 "##)
+}
+
+fn tpl_provider(pascal: &str, snake: &str) -> String {
+    format!(r##"use viontin::app::{{Application, ServiceProvider}};
+
+/// {pascal} — service provider.
+///
+/// Registers services into the DI container during boot.
+/// Register via: `boot().provider({pascal})`
+#[derive(Debug)]
+pub struct {pascal};
+
+impl ServiceProvider for {pascal} {{
+    fn name(&self) -> &str {{ "{snake}" }}
+
+    fn register(&self, app: &mut Application) {{
+        // app.container.singleton(MyService::new());
+    }}
+
+    fn boot(&self, _app: &Application) {{
+        // Post-registration initialization
+    }}
+}}
+
+impl {pascal} {{
+    pub fn new() -> Self {{
+        {pascal}
+    }}
+}}
+"##)
+}
+
+fn hint_provider(pascal: &str, _snake: &str) -> String {
+    format!("Register in boot: boot().provider({pascal})")
 }
 
 fn tpl_contract(pascal: &str, _snake: &str) -> String {
@@ -754,6 +789,16 @@ pub static CONTRACT: ScaffoldType = ScaffoldType {
     dir: "contracts",
     template: tpl_contract,
     usage: |p, _s| format!("Implement the {p} trait in your module"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static PROVIDER: ScaffoldType = ScaffoldType {
+    sig: "make:provider {name} {--force}",
+    desc: "Scaffold a new service provider",
+    dir: "providers",
+    template: tpl_provider,
+    usage: hint_provider,
     is_domain: false,
     ext: "rs",
 };
