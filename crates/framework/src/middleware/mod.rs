@@ -325,3 +325,54 @@ pub fn set_connection_timeout(stream: &std::net::TcpStream, seconds: u64) {
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(seconds)));
     let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(seconds)));
 }
+
+// ── RateLimitMiddleware ──
+
+/// Middleware that applies rate limiting to requests.
+///
+/// Uses the `RateLimiter` facade internally. When a client exceeds
+/// the allowed number of requests, a 429 Too Many Requests response
+/// is returned immediately without calling the downstream handler.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use viontin_framework::middleware::RateLimitMiddleware;
+///
+/// boot()
+///     .middleware(RateLimitMiddleware::new("global", 100, 60))  // 100 req/min
+///     .serve(":3000");
+/// ```
+#[derive(Debug)]
+pub struct RateLimitMiddleware {
+    key_prefix: String,
+    max_attempts: u64,
+    decay_seconds: u64,
+}
+
+impl RateLimitMiddleware {
+    pub fn new(key_prefix: &str, max_attempts: u64, decay_seconds: u64) -> Self {
+        RateLimitMiddleware {
+            key_prefix: key_prefix.into(),
+            max_attempts,
+            decay_seconds,
+        }
+    }
+}
+
+impl Middleware for RateLimitMiddleware {
+    fn handle(&self, req: &mut Request, next: &dyn Fn(&mut Request) -> Response) -> Response {
+        let key = format!("{}:{}", self.key_prefix, req.uri.path);
+
+        if crate::rate::too_many_attempts(&key, self.max_attempts) {
+            let retry_after = crate::rate::available_in(&key);
+            let mut res = Response::html("Too Many Requests")
+                .with_header("Retry-After", &retry_after.to_string());
+            res.status = StatusCode(429);
+            return res;
+        }
+
+        crate::rate::hit(&key, self.decay_seconds);
+        next(req)
+    }
+}

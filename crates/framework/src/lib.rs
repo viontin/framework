@@ -24,6 +24,8 @@ pub mod events;
 pub mod fs;
 pub mod gem;
 pub mod http;
+#[cfg(feature = "http-client")]
+pub mod http_client;
 pub mod lang;
 pub mod log;
 pub mod mail;

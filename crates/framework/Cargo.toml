@@ -13,9 +13,11 @@ glob = "0.3"
 viontest = { path = "../../../viontest" }
 tokio = { version = "1", features = ["net", "rt", "io-util", "sync"], optional = true }
 viontin-orm = { path = "../../../orm/crates/viontin-orm", optional = true }
+ureq = { version = "2", features = ["json"], optional = true }
 
 [features]
 async = ["tokio"]
 domain = []
 orm = ["viontin-orm"]
+http-client = ["ureq"]
 default = []
