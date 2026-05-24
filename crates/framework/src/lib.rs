@@ -35,6 +35,7 @@ pub mod module;
 pub mod notif;
 pub mod page;
 pub mod path;
+pub mod query_log;
 pub mod queue;
 pub mod repository;
 pub mod rate;

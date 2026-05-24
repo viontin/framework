@@ -60,7 +60,9 @@ fn main() {
         // Microservices
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::SERVICE_CONTRACT })
         // General Contracts
-        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::CONTRACT });
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::CONTRACT })
+        // Database
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::MIGRATION });
     let code = kernel.run(&args);
     code.exit();
 }

@@ -444,6 +444,28 @@ fn hint_provider(pascal: &str, _snake: &str) -> String {
     format!("Register in boot: boot().provider({pascal})")
 }
 
+fn tpl_migration(pascal: &str, snake: &str) -> String {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format!(r##"use viontin_orm::{{Migration}};
+
+/// {pascal} — auto-generated migration.
+pub fn up() -> Migration {{
+    Migration::new(
+        "{timestamp}_{snake}",
+        "CREATE TABLE IF NOT EXISTS {snake} (id INTEGER PRIMARY KEY AUTOINCREMENT)",
+        "DROP TABLE IF EXISTS {snake}",
+    )
+}}
+"##)
+}
+
+fn hint_migration(pascal: &str, snake: &str) -> String {
+    format!("Register: migrator.run(vec![{snake}::up()])?;")
+}
+
 fn tpl_contract(pascal: &str, _snake: &str) -> String {
     format!(r##"/// {pascal} — general-purpose contract.
 ///
@@ -787,6 +809,16 @@ pub static CONTRACT: ScaffoldType = ScaffoldType {
     dir: "contracts",
     template: tpl_contract,
     usage: |p, _s| format!("Implement the {p} trait in your module"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static MIGRATION: ScaffoldType = ScaffoldType {
+    sig: "make:migration {name} {--force}",
+    desc: "Scaffold a new database migration",
+    dir: "migrations",
+    template: tpl_migration,
+    usage: hint_migration,
     is_domain: false,
     ext: "rs",
 };
