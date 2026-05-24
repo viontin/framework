@@ -22,4 +22,12 @@ pub enum FrameworkError {
     Internal(String),
 }
 
+impl From<String> for FrameworkError {
+    fn from(s: String) -> Self { FrameworkError::Internal(s) }
+}
+
+impl From<&str> for FrameworkError {
+    fn from(s: &str) -> Self { FrameworkError::Internal(s.to_string()) }
+}
+
 pub type Result<T> = std::result::Result<T, FrameworkError>;

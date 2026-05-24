@@ -10,7 +10,7 @@ Core framework crates for the Viontin application platform.
 |-------|-------------|
 | `viontin` | Meta-crate — unified facade for end users |
 | `viontin-framework` | Core library — types, traits, runtime |
-| `viontin-cli` | CLI tool — 33 commands |
+| `viontin-cli` | CLI tool — 42 commands |
 | `viontin-tui` | TUI toolkit — prompts, styling, validator |
 | `viontin-macros` | Proc-macros — `#[domain]`, `#[domain_event]` |
 

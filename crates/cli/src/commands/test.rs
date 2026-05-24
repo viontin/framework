@@ -82,15 +82,13 @@ fn get_src_mtime(dir: &std::path::Path) -> u64 {
     latest
 }
 
-fn run_tests(dir: &std::path::Path, args: &[String], output: &Output) -> ExitCode {
-    use viontest::runner::{TestRunner, TestResult, TestStatus, ConsoleTestReporter};
+fn run_tests(dir: &std::path::Path, args: &[String], _output: &Output) -> ExitCode {
+    use viontest::runner::{TestRunner, TestResult, ConsoleTestReporter};
 
     let reporter = ConsoleTestReporter::new();
     let mut runner = TestRunner::new();
     let start = Instant::now();
-    let mut current_suite = String::from("test");
 
-    // Run cargo test, capturing stdout line by line
     let mut child = match CargoCmd::new("cargo")
         .args(args)
         .current_dir(dir)
@@ -109,19 +107,12 @@ fn run_tests(dir: &std::path::Path, args: &[String], output: &Output) -> ExitCod
     let reader = std::io::BufReader::new(stdout);
 
     // Regex patterns for parsing cargo test output
-    // "test tests::add ... ok"
-    // "test tests::broken ... FAILED"
-    // "test tests::skipped_test ... ignored"
-    // "test tests::slow_test ... ok"
     let re_test = regex::Regex::new(
         r"^test\s+(.+?)\s+\.\.\.\s+(\w+)"
     ).unwrap();
 
-    // "running N tests"
     let re_running = regex::Regex::new(r"^running\s+(\d+)").unwrap();
 
-    let mut total_tests = 0u64;
-    let mut seen_tests = 0u64;
     let mut build_failed = false;
 
     for line in reader.lines() {
@@ -131,8 +122,7 @@ fn run_tests(dir: &std::path::Path, args: &[String], output: &Output) -> ExitCod
         };
 
         // Detect test file/suite from output like "running 3 tests"
-        if let Some(cap) = re_running.captures(&line) {
-            let _count: u64 = cap.get(1).unwrap().as_str().parse().unwrap_or(0);
+        if re_running.captures(&line).is_some() {
             continue;
         }
 
@@ -141,13 +131,11 @@ fn run_tests(dir: &std::path::Path, args: &[String], output: &Output) -> ExitCod
             let test_name = cap.get(1).unwrap().as_str().to_string();
             let status_str = cap.get(2).unwrap().as_str();
 
-            seen_tests += 1;
-
             // Extract suite from test name (e.g. "tests::add" → suite="tests", name="add")
             let (suite, name) = if let Some(idx) = test_name.rfind("::") {
                 (test_name[..idx].to_string(), test_name[idx+2..].to_string())
             } else {
-                (current_suite.clone(), test_name.clone())
+                ("test".into(), test_name.clone())
             };
 
             let elapsed = start.elapsed();
@@ -155,8 +143,7 @@ fn run_tests(dir: &std::path::Path, args: &[String], output: &Output) -> ExitCod
             let result = match status_str {
                 "ok" => TestResult::pass(&name, elapsed),
                 "FAILED" => TestResult::fail(&name, &format!("Test '{}' failed", test_name), elapsed),
-                "ignored" => TestResult::skip(&name),
-                _ => TestResult::skip(&name),
+                "ignored" | _ => TestResult::skip(&name),
             };
 
             runner.add_result(&suite, result);
@@ -170,19 +157,12 @@ fn run_tests(dir: &std::path::Path, args: &[String], output: &Output) -> ExitCod
 
         // Detect test failure details
         if line.starts_with("----") || line.starts_with("thread '") {
-            // Failure details follow — capture them
             build_failed = true;
-        }
-
-        // Print cargo build output in dim style
-        if build_failed || line.contains("Compiling") || line.contains("error") {
-            continue; // Don't print cargo build output
         }
     }
 
     let _ = child.wait();
 
-    // Print results
     runner.print();
 
     let summary = runner.summary();

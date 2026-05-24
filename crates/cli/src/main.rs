@@ -47,8 +47,19 @@ fn main() {
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::NOTIFICATION })
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::QUERY })
         .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::MODULE })
-        // Level 2 — Domains
-        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::DOMAIN });
+        // Level 2 — Domains & DDD
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::DOMAIN })
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::AGGREGATE })
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::ENTITY })
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::VALUE_OBJECT })
+        // Architecture Patterns (RSC / MVC)
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::SERVICE })
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::REPOSITORY })
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::VIEW })
+        // Microservices
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::SERVICE_CONTRACT })
+        // General Contracts
+        .register(commands::make::MakeScaffoldCommand { scaffold: &commands::make::CONTRACT });
     let code = kernel.run(&args);
     code.exit();
 }

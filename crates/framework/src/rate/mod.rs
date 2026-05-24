@@ -84,7 +84,7 @@ impl RateLimiterDriver for TokenBucketLimiter {
     }
 
     fn too_many_attempts(&self, key: &str, max_attempts: u64) -> bool {
-        !self.attempt(key, max_attempts, 1)
+        self.hits(key) >= max_attempts
     }
 
     fn remaining(&self, key: &str, max_attempts: u64) -> u64 {

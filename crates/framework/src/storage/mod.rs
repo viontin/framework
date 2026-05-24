@@ -71,7 +71,7 @@ impl Driver for MemoryStorage {
     fn get(&self, path: &str) -> Result<Vec<u8>, String> { self.files.lock().map_err(|e| e.to_string())?.get(path).cloned().ok_or_else(|| "not found".into()) }
     fn put(&self, path: &str, content: &[u8]) -> Result<(), String> { self.files.lock().map_err(|e| e.to_string())?.insert(path.into(), content.to_vec()); Ok(()) }
     fn exists(&self, path: &str) -> bool { self.files.lock().map(|m| m.contains_key(path)).unwrap_or(false) }
-    fn delete(&self, _path: &str) -> Result<(), String> { Ok(()) }
+    fn delete(&self, path: &str) -> Result<(), String> { self.files.lock().map_err(|e| e.to_string())?.remove(path); Ok(()) }
     fn files(&self, _directory: &str) -> Result<Vec<String>, String> { Ok(self.files.lock().map_err(|e| e.to_string())?.keys().cloned().collect()) }
     fn url(&self, path: &str) -> String { format!("/memory/{}", path) }
     fn size(&self, path: &str) -> Result<u64, String> { self.files.lock().map_err(|e| e.to_string())?.get(path).map(|c| c.len() as u64).ok_or_else(|| "not found".into()) }

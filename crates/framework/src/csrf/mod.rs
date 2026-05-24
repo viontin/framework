@@ -101,6 +101,6 @@ mod hex {
             result.push(CHARS[(b >> 4) as usize]);
             result.push(CHARS[(b & 0x0f) as usize]);
         }
-        String::from_utf8(result).unwrap()
+        String::from_utf8(result).unwrap_or_else(|_| String::new())
     }
 }

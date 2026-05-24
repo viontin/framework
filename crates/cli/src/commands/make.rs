@@ -34,6 +34,7 @@ pub struct ScaffoldType {
     pub template: fn(&str, &str) -> String,
     pub usage: fn(&str, &str) -> String,
     pub is_domain: bool,
+    pub ext: &'static str,
 }
 
 pub struct MakeScaffoldCommand {
@@ -70,7 +71,8 @@ impl Command for MakeScaffoldCommand {
         } else {
             current_dir.join("src").join(self.scaffold.dir)
         };
-        let file_name = if is_module { "mod.rs".to_string() } else { format!("{}.rs", snake) };
+        let file_ext = if self.scaffold.ext.is_empty() { "rs" } else { self.scaffold.ext };
+        let file_name = if is_module { "mod.rs".to_string() } else { format!("{}.{}", snake, file_ext) };
         let content = (self.scaffold.template)(&pascal, &snake);
         let file_path = target_dir.join(&file_name);
 
@@ -183,12 +185,31 @@ fn mod_has_entry(mod_file: &Path, name: &str) -> bool {
 
 // ── Templates ──
 
-fn tpl_model(pascal: &str, _snake: &str) -> String {
-    format!(r##"use serde::{{Serialize, Deserialize}};
+fn tpl_model(pascal: &str, snake: &str) -> String {
+    format!(r##"use viontin::model_system::Model;
+use viontin::fw::db::{{Row, Value, Connection}};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct {pascal} {{
     pub id: i64,
+    pub conn: Box<dyn Connection>,
+}}
+
+impl Model for {pascal} {{
+    fn connection(&self) -> &dyn Connection {{ &*self.conn }}
+    fn id(&self) -> String {{ self.id.to_string() }}
+    fn table_name() -> &'static str {{ "{snake}" }}
+
+    fn from_row(row: &Row) -> Result<Self, String> {{
+        Ok({pascal} {{
+            id: row.int("id").ok_or("missing id")?,
+            conn: todo!("inject connection"),
+        }})
+    }}
+
+    fn to_values(&self) -> Vec<(&str, Value)> {{
+        vec![]
+    }}
 }}
 "##)
 }
@@ -286,11 +307,147 @@ fn tpl_query(_pascal: &str, _snake: &str) -> String {
 "##)
 }
 
-fn tpl_module(pascal: &str, _snake: &str) -> String {
-    format!(r##"// {pascal} module
+fn tpl_module(pascal: &str, snake: &str) -> String {
+    format!(r##"use std::sync::Arc;
+use viontin::module_system::Module;
+use viontin::fw::server::Router;
+use viontin::fw::cli::Command;
 
-pub fn init() {{
-    // module initialization
+/// {pascal} — self-contained module.
+///
+/// Register in boot: `boot().module({pascal})`
+#[derive(Debug, Clone)]
+pub struct {pascal};
+
+impl Module for {pascal} {{
+    fn name(&self) -> &str {{ "{snake}" }}
+
+    fn routes(&self, router: Router) -> Router {{
+        // router.get("/{snake}", Arc::new(handler))
+        router
+    }}
+
+    fn commands(&self) -> Vec<Box<dyn Command + 'static>> {{
+        vec![]
+    }}
+}}
+
+impl {pascal} {{
+    pub fn new() -> Self {{
+        {pascal}
+    }}
+}}
+"##)
+}
+
+fn tpl_aggregate(pascal: &str, _snake: &str) -> String {
+    format!(r##"use viontin::DomainEvent;
+use std::fmt;
+
+/// {pascal} aggregate root.
+///
+/// An aggregate guarantees consistency boundaries within the domain.
+/// It emits domain events that can be stored and replayed.
+#[derive(Debug, Clone)]
+pub struct {pascal} {{
+    pub id: String,
+    // aggregate fields
+    events: Vec<Box<dyn DomainEvent>>,
+}}
+
+impl {pascal} {{
+    pub fn new(id: &str) -> Self {{
+        {pascal} {{ id: id.into(), events: Vec::new() }}
+    }}
+
+    pub fn id(&self) -> &str {{ &self.id }}
+
+    pub fn events(&self) -> &[Box<dyn DomainEvent>] {{ &self.events }}
+
+    pub fn clear_events(&mut self) {{ self.events.clear() }}
+
+    fn record<E: DomainEvent + 'static>(&mut self, event: E) {{
+        self.events.push(Box::new(event));
+    }}
+}}
+"##)
+}
+
+fn tpl_entity(_pascal: &str, _snake: &str) -> String {
+    format!(r##"/// Domain entity.
+///
+/// Entities have identity and can change over time.
+/// Unlike value objects, two entities with the same field values
+/// are NOT equal — they are distinguished by their ID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entity {{
+    pub id: String,
+}}
+
+impl Entity {{
+    pub fn new(id: &str) -> Self {{
+        Entity {{ id: id.into() }}
+    }}
+}}
+"##)
+}
+
+fn tpl_value_object(pascal: &str, _snake: &str) -> String {
+    format!(r##"/// {pascal} value object.
+///
+/// Value objects are immutable, have no identity, and are compared
+/// by their field values. Use value objects to encapsulate concepts
+/// with validation rules (email, money, date range, etc.).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct {pascal} {{
+    pub value: String,
+}}
+
+impl {pascal} {{
+    pub fn new(value: &str) -> Self {{
+        {pascal} {{ value: value.into() }}
+    }}
+}}
+"##)
+}
+
+fn tpl_contract(pascal: &str, _snake: &str) -> String {
+    format!(r##"/// {pascal} — general-purpose contract.
+///
+/// A contract defines a clear interface between components.
+/// Use contracts to decouple modules and enable testability.
+pub trait {pascal}: std::fmt::Debug + Send + Sync {{
+    fn execute(&self) -> Result<String, String>;
+}}
+"##)
+}
+
+fn tpl_service_contract(pascal: &str, snake: &str) -> String {
+    format!(r##"use viontin::service_contract::ServiceContract;
+
+/// {pascal} — service contract for microservices boundary.
+///
+/// This defines the API boundary for the {snake} service.
+/// In a modular monolith, this runs in-process.
+/// To extract into a microservice, replace the registration with
+/// `RemoteServiceAdapter::new("{snake}", "http://{snake}:8080")`.
+#[derive(Debug)]
+pub struct {pascal};
+
+impl ServiceContract for {pascal} {{
+    fn name(&self) -> &str {{ "{snake}" }}
+    fn version(&self) -> &str {{ "1.0" }}
+
+    fn handle(&self, command: &str, payload: &[u8]) -> Result<Vec<u8>, String> {{
+        match command {{
+            "ping" => Ok(b"pong".to_vec()),
+            _ => Err(format!("Unknown command: {{}}", command)),
+        }}
+    }}
+
+    fn commands(&self) -> Vec<&str> {{
+        vec!["ping"]
+    }}
 }}
 "##)
 }
@@ -314,8 +471,8 @@ pub const DEFINITION: Domain = Domain::new("{snake}")
 
 // ── Usage hints ──
 
-fn hint_model(_pascal: &str, _snake: &str) -> String {
-    "Use it with: models::YourModel".to_string()
+fn hint_model(pascal: &str, _snake: &str) -> String {
+    format!("Use: let items = {pascal}::all(&conn)?; let item = {pascal}::find(&conn, 1)?;")
 }
 
 fn hint_route(pascal: &str, _snake: &str) -> String {
@@ -368,6 +525,7 @@ pub fn index(_req: Request) -> Response {{
 "##),
     usage: |p, _| format!("Register route: .get(\"/\", Arc::new({p}::index))"),
     is_domain: false,
+    ext: "rs",
 };
 
 pub static MIDDLEWARE: ScaffoldType = ScaffoldType {
@@ -386,15 +544,17 @@ impl {p} {{
 "##),
     usage: |_p, _| format!("Use with: Router middleware chain"),
     is_domain: false,
+    ext: "rs",
 };
 
 pub static MODEL: ScaffoldType = ScaffoldType {
     sig: "make:model {name} {--force}",
-    desc: "Scaffold a new model",
+    desc: "Scaffold a new model (active-record, recommended default)",
     dir: "models",
     template: tpl_model,
     usage: hint_model,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static ROUTE: ScaffoldType = ScaffoldType {
@@ -404,6 +564,7 @@ pub static ROUTE: ScaffoldType = ScaffoldType {
     template: tpl_route,
     usage: hint_route,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static COMMAND: ScaffoldType = ScaffoldType {
@@ -413,6 +574,7 @@ pub static COMMAND: ScaffoldType = ScaffoldType {
     template: tpl_command,
     usage: hint_command,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static EVENT: ScaffoldType = ScaffoldType {
@@ -422,6 +584,7 @@ pub static EVENT: ScaffoldType = ScaffoldType {
     template: tpl_event,
     usage: hint_event,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static JOB: ScaffoldType = ScaffoldType {
@@ -431,6 +594,7 @@ pub static JOB: ScaffoldType = ScaffoldType {
     template: tpl_job,
     usage: hint_job,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static MAIL: ScaffoldType = ScaffoldType {
@@ -440,6 +604,7 @@ pub static MAIL: ScaffoldType = ScaffoldType {
     template: tpl_mail,
     usage: hint_mail,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static NOTIFICATION: ScaffoldType = ScaffoldType {
@@ -449,6 +614,7 @@ pub static NOTIFICATION: ScaffoldType = ScaffoldType {
     template: tpl_notification,
     usage: hint_notification,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static QUERY: ScaffoldType = ScaffoldType {
@@ -458,6 +624,7 @@ pub static QUERY: ScaffoldType = ScaffoldType {
     template: tpl_query,
     usage: hint_query,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static MODULE: ScaffoldType = ScaffoldType {
@@ -467,6 +634,7 @@ pub static MODULE: ScaffoldType = ScaffoldType {
     template: tpl_module,
     usage: hint_module,
     is_domain: false,
+    ext: "rs",
 };
 
 pub static DOMAIN: ScaffoldType = ScaffoldType {
@@ -476,4 +644,138 @@ pub static DOMAIN: ScaffoldType = ScaffoldType {
     template: tpl_domain,
     usage: hint_domain,
     is_domain: true,
+    ext: "rs",
+};
+
+pub static SERVICE: ScaffoldType = ScaffoldType {
+    sig: "make:service {name} {--force}",
+    desc: "Scaffold a new service (business logic layer)",
+    dir: "services",
+    template: |p, _s| format!(r##"use viontin::fw::db::QueryBuilder;
+
+/// {p} — business logic layer.
+///
+/// Services encapsulate application logic, coordinate repositories,
+/// and are called by controllers or other services.
+pub struct {p};
+
+impl {p} {{
+    pub fn new() -> Self {{
+        {p}
+    }}
+
+    pub fn execute(&self) -> Result<Vec<String>, String> {{
+        // Business logic here
+        Ok(vec![])
+    }}
+}}
+"##),
+    usage: |p, _| format!("Use in controller: let svc = {p}::new(); let result = svc.execute()?;"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static REPOSITORY: ScaffoldType = ScaffoldType {
+    sig: "make:repository {name} {--force}",
+    desc: "Scaffold a new repository (data access layer)",
+    dir: "repositories",
+    template: |p, s| format!(r##"use viontin::fw::db::{{QueryBuilder, Row, Connection}};
+
+
+/// {p} — data access layer.
+///
+/// Repositories abstract database access behind a clean interface.
+/// Controllers and services depend on repositories, not on the database directly.
+pub struct {p};
+
+impl {p} {{
+    pub fn new() -> Self {{
+        {p}
+    }}
+
+    pub fn all(conn: &dyn Connection) -> Result<Vec<Row>, String> {{
+        QueryBuilder::table(conn, "{s}")
+            .get()
+    }}
+
+    pub fn find_by_id(conn: &dyn Connection, id: i64) -> Result<Option<Row>, String> {{
+        QueryBuilder::table(conn, "{s}").find(id)
+    }}
+}}
+"##),
+    usage: |p, _| format!("Use in service: let repo = {p}::new(); repo.all(&conn)"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static AGGREGATE: ScaffoldType = ScaffoldType {
+    sig: "make:aggregate {name} {--force}",
+    desc: "Scaffold a new aggregate root (DDD)",
+    dir: "domain",
+    template: tpl_aggregate,
+    usage: |_p, s| format!("Use as boundary for {s} aggregate. Record events with .record(MyEvent)"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static ENTITY: ScaffoldType = ScaffoldType {
+    sig: "make:entity {name} {--force}",
+    desc: "Scaffold a new domain entity (DDD)",
+    dir: "domain",
+    template: tpl_entity,
+    usage: |_p, _s| format!("Entity with identity — use as building block within a domain"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static VALUE_OBJECT: ScaffoldType = ScaffoldType {
+    sig: "make:value-object {name} {--force}",
+    desc: "Scaffold a new value object (DDD)",
+    dir: "domain",
+    template: tpl_value_object,
+    usage: |p, _s| format!("Immutable value: let vo = {p}::new(\"value\")"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static SERVICE_CONTRACT: ScaffoldType = ScaffoldType {
+    sig: "make:service-contract {name} {--force}",
+    desc: "Scaffold a new service contract (microservices boundary)",
+    dir: "contracts",
+    template: tpl_service_contract,
+    usage: |p, s| format!("Register in ServiceRegistry: registry.add({p}); Resolve: registry.get(\"{s}\")"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static CONTRACT: ScaffoldType = ScaffoldType {
+    sig: "make:contract {name} {--force}",
+    desc: "Scaffold a general-purpose contract (trait)",
+    dir: "contracts",
+    template: tpl_contract,
+    usage: |p, _s| format!("Implement the {p} trait in your module"),
+    is_domain: false,
+    ext: "rs",
+};
+
+pub static VIEW: ScaffoldType = ScaffoldType {
+    sig: "make:view {name} {--force}",
+    desc: "Scaffold a new HTML view template",
+    dir: "views",
+    template: |p, _s| format!(r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{p}</title>
+</head>
+<body>
+    <h1>{p}</h1>
+    {{content}}
+</body>
+</html>
+"##),
+    usage: |_p, s| format!("Embed in route: viontin::html!(\"views/{s}.html\") — embed \"views/{s}.html\" at compile time"),
+    is_domain: false,
+    ext: "html",
 };

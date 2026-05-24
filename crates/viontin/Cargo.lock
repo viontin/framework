@@ -371,6 +371,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "viontest",
+ "viontin-orm",
 ]
 
 [[package]]
@@ -389,6 +390,10 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "viontin-orm"
+version = "0.1.0"
 
 [[package]]
 name = "viontin-tui"

@@ -9,15 +9,20 @@ struct Pkg {
     name: &'static str,
     dir: &'static str,
     features: &'static [&'static str],
-    desc: &'static str,
 }
 
 static PACKAGES: &[Pkg] = &[
-    Pkg { name: "viontin",       dir: "crates/viontin",  features: &[],      desc: "Unified facade" },
-    Pkg { name: "viontin-framework", dir: "crates/framework", features: &[], desc: "Runtime implementations with types & traits" },
-    Pkg { name: "viontin-tui",   dir: "crates/tui",      features: &["prompts"], desc: "CLI toolkit" },
-    Pkg { name: "viontin-orm",   dir: "../orm/crates/viontin-orm", features: &[], desc: "Multi-driver ORM" },
-    Pkg { name: "viontin-gems",  dir: "../gems/crates/viontin-gems", features: &[], desc: "Plugin system" },
+    Pkg { name: "viontin",       dir: "crates/viontin",  features: &[] },
+    Pkg { name: "viontin-framework", dir: "crates/framework", features: &[] },
+    Pkg { name: "viontin-tui",   dir: "crates/tui",      features: &["prompts"] },
+    Pkg { name: "viontin-orm",   dir: "../orm/crates/viontin-orm", features: &[] },
+    Pkg { name: "viontin-orm-pg", dir: "../orm/crates/viontin-orm-pg", features: &[] },
+    Pkg { name: "viontin-orm-mysql", dir: "../orm/crates/viontin-orm-mysql", features: &[] },
+    Pkg { name: "viontin-orm-sqlite", dir: "../orm/crates/viontin-orm-sqlite", features: &[] },
+    Pkg { name: "viontin-gems",  dir: "../gems/crates/viontin-gems", features: &[] },
+    Pkg { name: "viontin-gem-tailwind", dir: "../gems/crates/viontin-gem-tailwind", features: &[] },
+    Pkg { name: "viontin-gem-inertia", dir: "../gems/crates/viontin-gem-inertia", features: &[] },
+    Pkg { name: "viontin-gem-webview", dir: "../gems/crates/viontin-gem-webview", features: &[] },
 ];
 
 impl Command for AddCommand {

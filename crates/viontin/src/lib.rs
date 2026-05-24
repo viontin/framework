@@ -17,11 +17,26 @@ pub mod app {
 #[cfg(feature = "domain")]
 pub use viontin_framework::domain::{
     Domain, DomainViolation, DomainEvent, DomainListener,
-    GenericDomainEvent, AggregateRoot, Repository,
+    GenericDomainEvent, AggregateRoot, DomainRepository,
+    EventStore, Projection,
     register as register_domain, domains, find as find_domain,
     is_allowed as domain_is_allowed, check_all as check_domains, DomainBoundary,
     DomainServiceProvider, DomainConfig,
 };
+
+pub use viontin_framework::entity as entity_system;
+pub use viontin_framework::entity::Entity;
+pub use viontin_framework::model as model_system;
+pub use viontin_framework::model::Model;
+pub use viontin_framework::repository as repo_system;
+pub use viontin_framework::repository::Repository;
+pub use viontin_framework::module as module_system;
+pub use viontin_framework::contract as service_contract;
+#[cfg(feature = "orm")]
+pub use viontin_framework::service as svc;
+#[cfg(feature = "orm")]
+pub use viontin_framework::controller as ctrl;
+pub use viontin_framework::http::form_request::FormRequest;
 
 pub use viontin_framework::{
     cache::{Cache, MemoryCache, FileCache, NullCache, CacheDriver},
@@ -38,7 +53,8 @@ pub use viontin_framework::{
     fs::{read, write, copy, ensure_dir, find_files, TempDir, FileInfo},
     http::{Request, Response, StatusCode, Method, Headers, Uri, Cookie},
     lang::{JsonTranslator, trans, choice, locale, init as lang_init, Translator},
-    log::{Logger, StdoutLog, LogFormat, Level, LogEntry, LogChannel, log_info, log_error, log_warning, log_debug},
+    log::{Logger, StdoutLog, LogFormat, Level, LogEntry, LogChannel,
+          log_emergency, log_alert, log_critical, log_error, log_warning, log_notice, log_info, log_debug},
     middleware::{Middleware, MiddlewareChain},
     mail::{Mailer, Envelope, Attachment, LogTransport, ArrayTransport, Mail},
     notif::{Notifiable, Notification as NotifTrait, Channel as NotificationChannel, MailChannel, DatabaseChannel, Notif},
@@ -67,6 +83,12 @@ pub use viontin_framework::{
     ws::{Opcode, Message, WebSocketConfig, WebSocketHandler, ws_router, WsRouter, WsServer},
 };
 
+#[cfg(feature = "orm")]
+pub mod orm {
+    //! Re-exports from `viontin-orm` (requires `orm` feature).
+    pub use viontin_framework::orm::*;
+}
+
 pub use viontin_framework::cli::output::Log;
 pub use viontin_tui::validator as tui_validator;
 pub use viontin_framework::path::{base_path, base_path_glob, url};
@@ -91,11 +113,21 @@ pub mod prelude {
     pub use crate::Page;
     pub use crate::SimpleEncrypter;
     pub use crate::fw::cli::{Command, Input, Output, ExitCode, Kernel};
-    pub use crate::gem::{GemRegistry, GemKind, GemFacade, GemMeta, GemBinding};
+    pub use crate::gem::{GemRegistry, GemKind, GemFacade, GemMeta, GemBinding, GemBuilder};
+    pub use crate::entity_system::Entity;
+    pub use crate::model_system::Model;
+    pub use crate::repo_system::Repository;
+    pub use crate::module_system::{Module, ModuleGroup};
+    pub use crate::service_contract::{ServiceContract, ServiceRegistry, RemoteServiceAdapter};
+    #[cfg(feature = "orm")]
+    pub use crate::svc::{Service, DefaultService};
+    #[cfg(feature = "orm")]
+    pub use crate::ctrl::Controller;
+    pub use crate::FormRequest;
     #[cfg(feature = "domain")]
     pub use crate::Domain;
     #[cfg(feature = "domain")]
-    pub use crate::{AggregateRoot, Repository, DomainEvent};
+    pub use crate::{AggregateRoot, DomainRepository, DomainEvent, EventStore, Projection};
 }
 
 // Viontin macros are accessible via `viontin::macros::*`

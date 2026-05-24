@@ -146,6 +146,7 @@ pub fn exec_cargo(args: &[&str], output: &Output) -> ExitCode {
     else { output.error(&format!("cargo {} failed (exit: {:?})", args.join(" "), status.code())); ExitCode::Failure }
 }
 
+#[allow(dead_code)]
 pub fn exec_cargo_allow_fail(args: &[&str], output: &Output) -> ExitCode {
     let dir = match std::env::current_dir() {
         Ok(d) => d,

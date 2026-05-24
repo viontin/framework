@@ -45,12 +45,16 @@ pub struct WsRouter {
 
 impl WsRouter {
     pub fn ws(self, path: &str, handler: impl WebSocketHandler) -> Self {
-        self.routes.lock().unwrap().insert(path.into(), (WebSocketConfig::default(), Arc::new(handler)));
+        if let Ok(mut routes) = self.routes.lock() {
+            routes.insert(path.into(), (WebSocketConfig::default(), Arc::new(handler)));
+        }
         self
     }
 
     pub fn ws_with_config(self, path: &str, config: WebSocketConfig, handler: impl WebSocketHandler) -> Self {
-        self.routes.lock().unwrap().insert(path.into(), (config, Arc::new(handler)));
+        if let Ok(mut routes) = self.routes.lock() {
+            routes.insert(path.into(), (config, Arc::new(handler)));
+        }
         self
     }
 

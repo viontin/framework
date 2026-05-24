@@ -97,7 +97,9 @@ impl ConfigLoader {
 static GLOBAL: OnceLock<Mutex<ConfigRepository>> = OnceLock::new();
 fn global() -> &'static Mutex<ConfigRepository> { GLOBAL.get_or_init(|| Mutex::new(ConfigRepository::new())) }
 
-pub fn init(config: ConfigRepository) { global().lock().unwrap().items = config.items; }
+pub fn init(config: ConfigRepository) {
+    if let Ok(mut g) = global().lock() { g.items = config.items; }
+}
 
 pub fn config<T: ConfigGet>(key: &str, default: T) -> T {
     global().lock().ok()

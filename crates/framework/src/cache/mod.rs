@@ -63,11 +63,30 @@ impl std::fmt::Debug for MemoryCache {
 }
 impl MemoryCache { pub fn new() -> Self { MemoryCache { data: Mutex::new(HashMap::new()) } } }
 impl Default for MemoryCache { fn default() -> Self { Self::new() } }
+impl MemoryCache {
+    /// Remove all expired entries. Returns how many were removed.
+    pub fn gc(&self) -> u64 {
+        let mut d = match self.data.lock() { Ok(d) => d, Err(_) => return 0 };
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        let before = d.len();
+        d.retain(|_, e| e.expires_at == 0 || now <= e.expires_at);
+        (before - d.len()) as u64
+    }
+}
+
 impl CacheDriver for MemoryCache {
     fn name(&self) -> &str { "memory" }
     fn get(&self, key: &str) -> Option<String> {
-        let d = self.data.lock().ok()?; let e = d.get(key)?;
-        if e.expires_at > 0 && SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() > e.expires_at { None } else { Some(e.value.clone()) }
+        let mut d = self.data.lock().ok()?;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+        if let Some(e) = d.get(key) {
+            if e.expires_at > 0 && now > e.expires_at {
+                d.remove(key);
+                return None;
+            }
+            return Some(e.value.clone());
+        }
+        None
     }
     fn set(&self, key: &str, value: &str, ttl: Option<u64>) {
         if let Ok(mut d) = self.data.lock() { d.insert(key.into(), CacheEntry { value: value.into(), expires_at: ttl.map(|t| SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() + t).unwrap_or(0) }); }

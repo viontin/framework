@@ -1,3 +1,5 @@
+pub mod form_request;
+
 use std::collections::HashMap;
 use std::fmt;
 

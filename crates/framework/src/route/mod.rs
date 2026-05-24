@@ -90,28 +90,32 @@ impl Default for RouteRegistry { fn default() -> Self { Self::new() } }
 
 // ── Metadata registration (tracking only, no handler) ──
 
+fn with_registry(f: impl FnOnce(&mut RouteRegistry)) {
+    if let Ok(mut reg) = registry().lock() { f(&mut reg); }
+}
+
 pub fn register(method: RouteMethod, path: &str, handler_name: &str, source: &str) {
-    registry().lock().unwrap().register(method, path, handler_name, source);
+    with_registry(|r| r.register(method, path, handler_name, source));
 }
 
 pub fn get(path: &str, handler_name: &str, source: &str) {
-    registry().lock().unwrap().register(RouteMethod::Get, path, handler_name, source);
+    with_registry(|r| r.register(RouteMethod::Get, path, handler_name, source));
 }
 
 pub fn post(path: &str, handler_name: &str, source: &str) {
-    registry().lock().unwrap().register(RouteMethod::Post, path, handler_name, source);
+    with_registry(|r| r.register(RouteMethod::Post, path, handler_name, source));
 }
 
 pub fn put(path: &str, handler_name: &str, source: &str) {
-    registry().lock().unwrap().register(RouteMethod::Put, path, handler_name, source);
+    with_registry(|r| r.register(RouteMethod::Put, path, handler_name, source));
 }
 
 pub fn delete(path: &str, handler_name: &str, source: &str) {
-    registry().lock().unwrap().register(RouteMethod::Delete, path, handler_name, source);
+    with_registry(|r| r.register(RouteMethod::Delete, path, handler_name, source));
 }
 
 pub fn remove(method: RouteMethod, path: &str) {
-    registry().lock().unwrap().remove(method, path);
+    with_registry(|r| r.remove(method, path));
 }
 
 pub fn has(method: &RouteMethod, path: &str) -> bool {
@@ -123,7 +127,7 @@ pub fn all() -> Vec<RouteDefinition> {
 }
 
 pub fn finalize() {
-    registry().lock().unwrap().finalize();
+    with_registry(|r| r.finalize());
 }
 
 // ── Handler registration (stores actual handler for the HTTP server) ──
@@ -133,7 +137,8 @@ pub fn finalize() {
 ///
 /// Panics if the route (method + path) was already registered with a handler.
 pub fn register_handler(method: Method, path: &str, handler: Handler) {
-    let mut h = ROUTE_HANDLERS.get_or_init(|| Mutex::new(Vec::new())).lock().unwrap();
+    let mut h = ROUTE_HANDLERS.get_or_init(|| Mutex::new(Vec::new())).lock()
+        .expect("ROUTE_HANDLERS mutex poisoned");
     if h.iter().any(|(m, p, _)| m == &method && p == path) {
         panic!("Route {} {} already registered with a handler", method, path);
     }
@@ -142,5 +147,6 @@ pub fn register_handler(method: Method, path: &str, handler: Handler) {
 
 /// Collect all registered handlers into a Vec for Router construction.
 pub fn take_handlers() -> Vec<(Method, String, Handler)> {
-    ROUTE_HANDLERS.get_or_init(|| Mutex::new(Vec::new())).lock().unwrap().drain(..).collect()
+    ROUTE_HANDLERS.get_or_init(|| Mutex::new(Vec::new())).lock()
+        .expect("ROUTE_HANDLERS mutex poisoned").drain(..).collect()
 }

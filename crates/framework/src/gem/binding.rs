@@ -11,7 +11,6 @@
 //! }
 //! ```
 
-use crate::error::Result;
 use crate::middleware::Middleware;
 use crate::app::ServiceProvider;
 use crate::cli::Command;

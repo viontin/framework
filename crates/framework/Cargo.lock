@@ -185,7 +185,12 @@ dependencies = [
  "thiserror",
  "tokio",
  "viontest",
+ "viontin-orm",
 ]
+
+[[package]]
+name = "viontin-orm"
+version = "0.1.0"
 
 [[package]]
 name = "wasi"

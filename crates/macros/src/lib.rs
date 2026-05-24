@@ -28,7 +28,7 @@ use domain_attr::DomainAttr;
 #[proc_macro_attribute]
 pub fn domain(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr_config = parse_macro_input!(attr as DomainAttr);
-    let mut module = parse_macro_input!(item as ItemMod);
+    let module = parse_macro_input!(item as ItemMod);
     let domain_name = &attr_config.name;
     let allows = &attr_config.allows;
     let provides = &attr_config.provides;

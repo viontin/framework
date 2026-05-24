@@ -97,8 +97,8 @@ impl Collection<i64> {
 impl Collection<f64> {
     pub fn sum(&self) -> f64 { self.items.iter().sum() }
     pub fn avg(&self) -> f64 { if self.items.is_empty() { 0.0 } else { self.items.iter().sum::<f64>() / self.items.len() as f64 } }
-    pub fn min(&self) -> Option<f64> { self.items.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).copied() }
-    pub fn max(&self) -> Option<f64> { self.items.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).copied() }
+    pub fn min(&self) -> Option<f64> { self.items.iter().min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).copied() }
+    pub fn max(&self) -> Option<f64> { self.items.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)).copied() }
 }
 
 impl<T: serde::Serialize> Collection<T> {

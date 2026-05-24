@@ -90,8 +90,8 @@ pub trait AggregateRoot: fmt::Debug + Send + Sync {
 
 // ── Repository ──
 
-/// A repository — data access abstraction scoped to a domain.
-pub trait Repository<T: AggregateRoot>: fmt::Debug + Send + Sync {
+/// A domain repository — data access abstraction scoped to a domain.
+pub trait DomainRepository<T: AggregateRoot>: fmt::Debug + Send + Sync {
     fn domain(&self) -> &str;
     fn save(&self, aggregate: &T) -> FrameworkResult<()>;
     fn find_by_id(&self, id: &str) -> std::result::Result<Option<T>, String>;
@@ -107,29 +107,76 @@ fn registry() -> &'static Mutex<Vec<Domain>> {
 }
 
 pub fn register(domain: Domain) {
-    let mut reg = registry().lock().unwrap();
-    if !reg.iter().any(|d| d.name == domain.name) {
-        reg.push(domain);
+    if let Ok(mut reg) = registry().lock() {
+        if !reg.iter().any(|d| d.name == domain.name) {
+            reg.push(domain);
+        }
     }
 }
 
 pub fn domains() -> Vec<Domain> {
-    registry().lock().unwrap().clone()
+    registry().lock().map(|r| r.clone()).unwrap_or_default()
 }
 
 pub fn find(name: &str) -> Option<Domain> {
-    registry().lock().unwrap().iter().find(|d| d.name == name).cloned()
+    registry().lock().ok()?.iter().find(|d| d.name == name).cloned()
 }
 
 pub fn is_allowed(from: &str, to: &str) -> bool {
     if from == to { return true; }
-    let reg = registry().lock().unwrap();
-    match reg.iter().find(|d| d.name == from) {
-        Some(domain) => domain.allows.contains(&to),
-        None => true,
+    let reg = registry().lock();
+    match reg.as_ref().map(|r| r.iter().find(|d| d.name == from)).ok() {
+        Some(Some(domain)) => domain.allows.contains(&to),
+        _ => true,
     }
 }
 
 pub fn check_all() -> Vec<DomainViolation> {
     rule::check_all_boundaries(&domains())
+}
+
+// ── Event Sourcing ──
+
+/// An event store — stores domain events for event sourcing and auditing.
+///
+/// Events stored here can be replayed to rebuild aggregate state (Projection)
+/// or forwarded to other services.
+pub trait EventStore: fmt::Debug + Send + Sync {
+    /// Store a domain event.
+    fn store(&self, event: &dyn DomainEvent) -> FrameworkResult<()>;
+
+    /// Get all events for a specific aggregate, ordered by occurrence.
+    fn events_for(&self, domain: &str, aggregate_id: &str) -> Result<Vec<Box<dyn DomainEvent>>, String>;
+
+    /// Get all events since a given sequence number (for projections).
+    fn events_since(&self, sequence: u64) -> Result<Vec<Box<dyn DomainEvent>>, String>;
+
+    /// Current event sequence number.
+    fn last_sequence(&self) -> Result<u64, String>;
+}
+
+/// A projection — rebuilds read models from domain events.
+///
+/// Projections consume events from the EventStore and update
+/// denormalized read models for query efficiency.
+pub trait Projection: fmt::Debug + Send + Sync {
+    /// Name of this projection (for identification).
+    fn name(&self) -> &str;
+
+    /// The domain this projection listens to.
+    fn domain(&self) -> &str;
+
+    /// Handle a domain event and update the read model.
+    fn handle(&self, event: &dyn DomainEvent) -> FrameworkResult<()>;
+
+    /// Rebuild the projection from scratch.
+    fn rebuild(&self, store: &dyn EventStore) -> FrameworkResult<()> {
+        let events = store.events_since(0)?;
+        for event in &events {
+            if event.domain() == self.domain() {
+                self.handle(event.as_ref())?;
+            }
+        }
+        Ok(())
+    }
 }

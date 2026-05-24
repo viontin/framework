@@ -18,6 +18,7 @@ use viontin_framework::gem::{GemBinding, GemRegistry};
 use viontin_gems::GemBuilder;
 use viontin_framework::http::{Request, Response};
 use viontin_framework::middleware::{Middleware, MiddlewareChain};
+use viontin_framework::module::Module;
 use viontin_framework::server::Router;
 use viontin_framework::ws::{self, WebSocketConfig, WebSocketHandler, WsRouter, WsServer};
 
@@ -161,19 +162,19 @@ impl Boot {
         self
     }
 
-    pub fn withProviders(mut self, providers: Vec<Box<dyn ServiceProvider + 'static>>) -> Self {
+    pub fn with_providers(mut self, providers: Vec<Box<dyn ServiceProvider + 'static>>) -> Self {
         for p in providers { self.app = self.app.with_boxed(p); }
         self
     }
 
     /// Remove a built-in service provider by name (e.g. "config", "log").
-    pub fn withoutProvider(mut self, name: &str) -> Self {
+    pub fn without_provider(mut self, name: &str) -> Self {
         self.app = self.app.without(name);
         self
     }
 
     /// Remove all built-in service providers (env, config, log, queue, events).
-    pub fn withoutDefaultProviders(mut self) -> Self {
+    pub fn without_default_providers(mut self) -> Self {
         for name in &["env", "config", "log", "queue", "events"] {
             self.app = self.app.without(name);
         }
@@ -189,19 +190,19 @@ impl Boot {
         self
     }
 
-    pub fn withCommands(mut self, commands: Vec<Box<dyn Command + 'static>>) -> Self {
+    pub fn with_commands(mut self, commands: Vec<Box<dyn Command + 'static>>) -> Self {
         for cmd in commands { self.kernel = self.kernel.register_dyn(cmd); }
         self
     }
 
     /// Remove a registered command by its signature name.
-    pub fn withoutCommand(mut self, name: &str) -> Self {
+    pub fn without_command(mut self, name: &str) -> Self {
         self.kernel = self.kernel.remove(name);
         self
     }
 
     /// Remove all registered commands.
-    pub fn withoutCommands(mut self) -> Self {
+    pub fn without_commands(mut self) -> Self {
         self.kernel = Kernel::new();
         self
     }
@@ -219,7 +220,7 @@ impl Boot {
         self
     }
 
-    pub fn withGems(mut self, gems: Vec<Box<dyn GemBinding + 'static>>) -> Self {
+    pub fn with_gems(mut self, gems: Vec<Box<dyn GemBinding + 'static>>) -> Self {
         for g in gems {
             for mw in g.gem_middlewares() { self.middlewares.add_dyn(mw); }
             for p in g.gem_providers() { self.app = self.app.with_boxed(p); }
@@ -231,14 +232,29 @@ impl Boot {
     }
 
     /// Remove a registered gem by name.
-    pub fn withoutGem(mut self, name: &str) -> Self {
+    pub fn without_gem(mut self, name: &str) -> Self {
         self.gems = self.gems.remove(name);
         self
     }
 
     /// Remove all registered gems.
-    pub fn withoutGems(mut self) -> Self {
+    pub fn without_gems(mut self) -> Self {
         self.gems = GemRegistry::new();
+        self
+    }
+
+    // ──────────────────────────────────────────────
+    //  MODULES
+    // ──────────────────────────────────────────────
+
+    /// Register a self-contained module with its routes, commands, and providers.
+    ///
+    /// Modules enable a modular monolith architecture. Each module is
+    /// self-contained and can later be extracted into a microservice.
+    pub fn module(mut self, m: impl Module + 'static) -> Self {
+        self.router = m.routes(self.router);
+        for cmd in m.commands() { self.kernel = self.kernel.register_dyn(cmd); }
+        for p in m.providers() { self.app = self.app.with_boxed(p); }
         self
     }
 
@@ -251,13 +267,13 @@ impl Boot {
         self
     }
 
-    pub fn withMiddlewares(mut self, mws: Vec<Box<dyn Middleware + 'static>>) -> Self {
+    pub fn with_middlewares(mut self, mws: Vec<Box<dyn Middleware + 'static>>) -> Self {
         for m in mws { self.middlewares.add_dyn(m); }
         self
     }
 
     /// Remove all registered middlewares.
-    pub fn withoutMiddlewares(mut self) -> Self {
+    pub fn without_middlewares(mut self) -> Self {
         self.middlewares = MiddlewareChain::new();
         self
     }
