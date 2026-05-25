@@ -42,11 +42,6 @@ fn load_env_at(path: &Path) -> Result<(), String> {
                 value = value[1..value.len()-1].to_string();
             }
             if std::env::var(&key).is_err() {
-                // SAFETY: set_var is called here during the single-threaded boot phase
-                // (EnvProvider runs before any threads are spawned). The `.env` file
-                // is loaded once at startup, so there is no concurrent access to
-                // environment variables from other threads.
-                unsafe { std::env::set_var(&key, &value); }
                 vars.insert(key, value);
             }
         }
@@ -67,9 +62,16 @@ pub fn load_env_auto() -> Result<(), String> {
     Err(".env not found".to_string())
 }
 
-pub fn env(key: &str, default: &str) -> String { std::env::var(key).unwrap_or_else(|_| default.to_string()) }
-pub fn env_int(key: &str, default: i64) -> i64 { std::env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default) }
-pub fn env_bool(key: &str, default: bool) -> bool {
-    std::env::var(key).ok().map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on")).unwrap_or(default)
+fn load_env_val(key: &str) -> Option<String> {
+    if let Ok(val) = std::env::var(key) {
+        return Some(val);
+    }
+    LOADED_ENV.get().and_then(|vars| vars.get(key).cloned())
 }
-pub fn has_env(key: &str) -> bool { std::env::var(key).is_ok() }
+
+pub fn env(key: &str, default: &str) -> String { load_env_val(key).unwrap_or_else(|| default.to_string()) }
+pub fn env_int(key: &str, default: i64) -> i64 { load_env_val(key).and_then(|v| v.parse().ok()).unwrap_or(default) }
+pub fn env_bool(key: &str, default: bool) -> bool {
+    load_env_val(key).map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes" | "on")).unwrap_or(default)
+}
+pub fn has_env(key: &str) -> bool { load_env_val(key).is_some() }

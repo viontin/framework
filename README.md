@@ -23,7 +23,7 @@ Core framework crates for the Viontin application platform.
 
 ## Documentation
 
-Full documentation: https://github.com/viontin/docs
+Framework documentation: https://github.com/viontin/docs
 
 ## License
 

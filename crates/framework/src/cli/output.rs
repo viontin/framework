@@ -339,19 +339,9 @@ impl LogChannel for Log<'_> {
 }
 
 fn supports_ansi() -> bool {
-    #[cfg(windows)]
-    {
-        use std::sync::atomic::AtomicBool;
-        static INIT: AtomicBool = AtomicBool::new(false);
-        static SUPPORTS: AtomicBool = AtomicBool::new(false);
-        if !INIT.swap(true, Ordering::Relaxed) {
-            SUPPORTS.store(unsafe { windows_sys::Win32::System::Console::GetStdHandle(-11) } != 0, Ordering::Relaxed);
-        }
-        SUPPORTS.load(Ordering::Relaxed)
+    use std::io::IsTerminal;
+    if !std::io::stdout().is_terminal() {
+        return false;
     }
-
-    #[cfg(not(windows))]
-    {
-        std::env::var("TERM").is_ok_and(|t| t != "dumb")
-    }
+    std::env::var("TERM").map_or(true, |t| t != "dumb")
 }
