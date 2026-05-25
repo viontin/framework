@@ -138,6 +138,7 @@ pub trait Repository<M: Entity>: std::fmt::Debug + Send + Sync {
 #[cfg(feature = "orm")]
 pub struct QueryScoped<'a, M: Entity, R: Repository<M> + 'a> {
     repo: &'a R,
+    #[allow(dead_code)]
     conn: &'a dyn Connection,
     qb: viontin_orm::QueryBuilder<'a>,
     _marker: ::std::marker::PhantomData<M>,

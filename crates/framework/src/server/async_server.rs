@@ -12,11 +12,10 @@
 //! }
 //! ```
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use crate::http::{Method, Request, Response, Headers, Uri};
+use crate::http::{Method, Request, Headers, Uri};
 use crate::server::Router;
 
 type IoResult<T> = Result<T, String>;
