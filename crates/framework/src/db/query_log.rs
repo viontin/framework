@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use viontin_framework::query_log::set_query_logger;
+//! use viontin_framework::db::query_log::set_query_logger;
 //!
 //! set_query_logger(|sql, duration_ms| {
 //!     println!("[query] {} ({:.1}ms)", sql, duration_ms);
@@ -39,7 +39,7 @@ pub fn log_query(sql: &str, duration_ms: f64) {
 /// Wraps a query execution with timing and logging.
 ///
 /// ```rust,ignore
-/// use viontin_framework::query_log::timed_query;
+/// use viontin_framework::db::query_log::timed_query;
 ///
 /// let result = timed_query("SELECT * FROM users", || {
 ///     conn.query("SELECT * FROM users", &[])

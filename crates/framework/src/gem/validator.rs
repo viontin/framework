@@ -1,4 +1,4 @@
-use crate::validator::{Validator, Context, Outcome};
+use crate::validators::{Validator, Context, Outcome};
 use crate::semver::{Version, VersionReq, Meta};
 
 pub fn validate_gem_meta(

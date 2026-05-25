@@ -2,7 +2,7 @@
 //!
 //! ```rust
 //! use viontin_framework::server::Router;
-//! use viontin_framework::server_async::AsyncServer;
+//! use viontin_framework::server::async_server::AsyncServer;
 //!
 //! #[tokio::main]
 //! async fn main() {
@@ -11,8 +11,6 @@
 //!     server.run("127.0.0.1:3000").await.unwrap();
 //! }
 //! ```
-
-#![cfg(feature = "async")]
 
 use std::collections::HashMap;
 use std::sync::Arc;

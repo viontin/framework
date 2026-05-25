@@ -16,7 +16,8 @@ use crate::app::ServiceProvider;
 use crate::cli::Command;
 use crate::server::Router;
 
-use super::GemFacade;
+use super::{GemFacade, GemMeta};
+use viontin_core::InternalResult;
 
 /// Standar colokan antara gem dan framework.
 ///
@@ -35,4 +36,12 @@ pub trait GemBinding: GemFacade {
 
     /// Routes tambahan (static files, SPA fallback, dll).
     fn gem_routes(&self) -> Option<fn(Router) -> Router> { None }
+}
+
+// Blanket impl: Box<dyn GemBinding> implements GemFacade
+// Allows GemRegistry::register() to accept Box<dyn GemBinding>
+impl GemFacade for Box<dyn GemBinding + '_> {
+    fn meta(&self) -> &GemMeta { (**self).meta() }
+    fn before_build(&self) -> InternalResult<()> { (**self).before_build() }
+    fn after_build(&self) -> InternalResult<()> { (**self).after_build() }
 }

@@ -1,3 +1,5 @@
+pub mod path;
+
 use std::fmt;
 
 pub trait Hasher: fmt::Debug + Send + Sync {

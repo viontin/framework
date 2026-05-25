@@ -1,5 +1,5 @@
 use crate::db::{Connection, Row, Value};
-use crate::entity::Entity;
+use crate::entities::Entity;
 
 /// Repository trait — data access with DI and lifecycle hooks.
 ///

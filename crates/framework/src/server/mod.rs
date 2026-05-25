@@ -1,3 +1,6 @@
+#[cfg(feature = "async")]
+pub mod async_server;
+
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};

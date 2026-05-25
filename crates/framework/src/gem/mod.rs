@@ -5,7 +5,7 @@ pub mod validator;
 
 use std::collections::HashMap;
 use std::fmt;
-use crate::error::Result;
+use viontin_core::InternalResult;
 
 #[derive(Debug, Clone)]
 pub struct GemMeta {
@@ -30,11 +30,16 @@ pub enum GemKind {
 }
 
 impl GemKind {
-    pub fn as_str(&self) -> &'static str {
-        match self { GemKind::Integration => "integration", GemKind::Platform => "platform",
-            GemKind::Database => "database", GemKind::Auth => "auth",
-            GemKind::DevTool => "devtool", GemKind::Theme => "theme",
-            GemKind::Custom(s) => s, }
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            GemKind::Integration => "Integration",
+            GemKind::Platform => "Platform",
+            GemKind::Database => "Database",
+            GemKind::Auth => "Auth",
+            GemKind::DevTool => "DevTool",
+            GemKind::Theme => "Theme",
+            GemKind::Custom(s) => s,
+        }
     }
 }
 
@@ -42,20 +47,20 @@ impl fmt::Display for GemKind { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt
 
 pub trait GemFacade: fmt::Debug + Send + Sync {
     fn meta(&self) -> &GemMeta;
-    fn before_build(&self) -> Result<()> { Ok(()) }
-    fn after_build(&self) -> Result<()> { Ok(()) }
+    fn before_build(&self) -> InternalResult<()> { Ok(()) }
+    fn after_build(&self) -> InternalResult<()> { Ok(()) }
 }
 
 pub struct SimpleGem {
     pub meta: GemMeta,
-    before_build_fn: Option<Box<dyn Fn() -> Result<()> + Send + Sync>>,
-    after_build_fn: Option<Box<dyn Fn() -> Result<()> + Send + Sync>>,
+    before_build_fn: Option<Box<dyn Fn() -> InternalResult<()> + Send + Sync>>,
+    after_build_fn: Option<Box<dyn Fn() -> InternalResult<()> + Send + Sync>>,
 }
 
 impl SimpleGem {
     pub fn new(meta: GemMeta) -> Self { SimpleGem { meta, before_build_fn: None, after_build_fn: None } }
-    pub fn on_before_build(mut self, f: Box<dyn Fn() -> Result<()> + Send + Sync>) -> Self { self.before_build_fn = Some(f); self }
-    pub fn on_after_build(mut self, f: Box<dyn Fn() -> Result<()> + Send + Sync>) -> Self { self.after_build_fn = Some(f); self }
+    pub fn on_before_build(mut self, f: Box<dyn Fn() -> InternalResult<()> + Send + Sync>) -> Self { self.before_build_fn = Some(f); self }
+    pub fn on_after_build(mut self, f: Box<dyn Fn() -> InternalResult<()> + Send + Sync>) -> Self { self.after_build_fn = Some(f); self }
 }
 
 impl fmt::Debug for SimpleGem {
@@ -68,8 +73,8 @@ impl fmt::Debug for SimpleGem {
 
 impl GemFacade for SimpleGem {
     fn meta(&self) -> &GemMeta { &self.meta }
-    fn before_build(&self) -> Result<()> { self.before_build_fn.as_ref().map_or(Ok(()), |f| f()) }
-    fn after_build(&self) -> Result<()> { self.after_build_fn.as_ref().map_or(Ok(()), |f| f()) }
+    fn before_build(&self) -> InternalResult<()> { self.before_build_fn.as_ref().map_or(Ok(()), |f| f()) }
+    fn after_build(&self) -> InternalResult<()> { self.after_build_fn.as_ref().map_or(Ok(()), |f| f()) }
 }
 
 #[derive(Debug)]
@@ -97,39 +102,31 @@ impl GemRegistry {
         let name = gem.meta().name.to_string();
         self.installed.insert(name, Box::new(gem));
     }
-
-    /// Remove a gem by name.
-    pub fn remove(mut self, name: &str) -> Self {
+    pub fn get(&self, name: &str) -> Option<&Box<dyn GemFacade>> {
+        self.installed.get(name)
+    }
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Box<dyn GemFacade>)> {
+        self.installed.iter()
+    }
+    pub fn before_build_all(&self) -> InternalResult<()> {
+        for (_, gem) in &self.installed {
+            gem.before_build()?;
+        }
+        Ok(())
+    }
+    pub fn after_build_all(&self) -> InternalResult<()> {
+        for (_, gem) in &self.installed {
+            gem.after_build()?;
+        }
+        Ok(())
+    }
+    pub fn remove(&mut self, name: &str) {
         self.installed.remove(name);
-        self
     }
-
-    pub fn register_dyn(&mut self, gem: Box<dyn GemFacade + 'static>) {
-        let name = gem.meta().name.to_string();
-        self.installed.insert(name, gem);
+    pub fn is_empty(&self) -> bool {
+        self.installed.is_empty()
     }
-    pub fn register_simple(&mut self, gem: SimpleGem) {
-        let name = gem.meta.name.to_string();
-        self.installed.insert(name, Box::new(gem));
-    }
-    pub fn register_dynamic(&mut self, gem: DynamicGem) {
-        let name = gem.meta.name.to_string();
-        self.installed.insert(name, Box::new(gem));
-    }
-    pub fn get(&self, name: &str) -> Option<&dyn GemFacade> { self.installed.get(name).map(|b| b.as_ref()) }
-    pub fn all(&self) -> Vec<&dyn GemFacade> {
-        let mut list: Vec<&dyn GemFacade> = self.installed.values().map(|b| b.as_ref()).collect();
-        list.sort_by_key(|g| g.meta().name); list
-    }
-    pub fn by_kind(&self, kind: GemKind) -> Vec<&dyn GemFacade> {
-        self.installed.values().filter(|g| g.meta().kind == kind).map(|b| b.as_ref()).collect()
-    }
-    pub fn before_build_all(&self) -> Result<()> {
-        for gem in self.installed.values() { gem.before_build()?; }
-        Ok(())
-    }
-    pub fn after_build_all(&self) -> Result<()> {
-        for gem in self.installed.values() { gem.after_build()?; }
-        Ok(())
+    pub fn len(&self) -> usize {
+        self.installed.len()
     }
 }

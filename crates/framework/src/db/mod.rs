@@ -1,17 +1,13 @@
-//! Framework database layer — built-in, no external ORM dependency.
+//! Framework database layer.
 //!
-//! When `features = ["orm"]` is enabled, types are re-exported from
-//! `viontin-orm` for compatibility with Repository, Model, and other
-//! pattern traits.
+//! Core types (Value, Row, DbConfig, Connection, ConnectionPool) come from
+//! viontin-core. When `features = ["orm"]` is enabled, the ORM's QueryBuilder
+//! is also available.
 
-#[cfg(feature = "orm")]
-pub use viontin_orm::{Value, Row, DbConfig, Connection, ConnectionPool};
+pub mod query_log;
 
-#[cfg(not(feature = "orm"))]
-mod builtin;
-
-#[cfg(not(feature = "orm"))]
-pub use builtin::{Value, Row, DbConfig, Connection, ConnectionPool, QueryBuilder};
+// Always re-export from viontin-core
+pub use viontin_core::{Value, Row, DbConfig, Connection, ConnectionPool};
 
 #[cfg(feature = "orm")]
 mod compat {
@@ -47,12 +43,10 @@ mod compat {
         }
         pub fn limit(mut self, n: u64) -> Self { self.limit = Some(n); self }
         pub fn offset(mut self, n: u64) -> Self { self.offset = Some(n); self }
-
         pub fn get(&self) -> Result<Vec<viontin_orm::Row>, String> {
             let (s, p) = self.sql();
             self.conn.query(&s, &p)
         }
-
         pub fn count(&self) -> Result<u64, String> {
             let rows = self.conn.query(&format!("SELECT COUNT(*) as count FROM {} {}", self.table,
                 if self.wheres.is_empty() { String::new() } else {
@@ -60,7 +54,6 @@ mod compat {
                 }), &self.wheres.iter().map(|w| w.val.clone()).collect::<Vec<_>>())?;
             rows.first().and_then(|r| r.int("count")).map(|c| c as u64).ok_or_else(|| "Count failed".into())
         }
-
         pub fn insert(&self, data: Vec<(&str, viontin_orm::Value)>) -> Result<i64, String> {
             let cols: Vec<String> = data.iter().map(|(c, _)| c.to_string()).collect();
             let params: Vec<viontin_orm::Value> = data.into_iter().map(|(_, v)| v).collect();
@@ -68,7 +61,6 @@ mod compat {
             self.conn.execute(&format!("INSERT INTO {} ({}) VALUES ({})", self.table, cols.join(", "), placeholders.join(", ")), &params)?;
             self.conn.last_insert_id()
         }
-
         fn sql(&self) -> (String, Vec<viontin_orm::Value>) {
             let mut sql = format!("SELECT {} FROM {}", self.cols.join(", "), self.table);
             let mut params = Vec::new();

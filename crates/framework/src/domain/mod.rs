@@ -6,7 +6,7 @@ pub use provider::{DomainServiceProvider, DomainConfig};
 
 use std::fmt;
 use std::sync::{Mutex, OnceLock};
-use crate::error::Result as FrameworkResult;
+use viontin_core::InternalResult;
 use crate::events::Event;
 
 // ── Domain ──
@@ -93,9 +93,9 @@ pub trait AggregateRoot: fmt::Debug + Send + Sync {
 /// A domain repository — data access abstraction scoped to a domain.
 pub trait DomainRepository<T: AggregateRoot>: fmt::Debug + Send + Sync {
     fn domain(&self) -> &str;
-    fn save(&self, aggregate: &T) -> FrameworkResult<()>;
+    fn save(&self, aggregate: &T) -> InternalResult<()>;
     fn find_by_id(&self, id: &str) -> std::result::Result<Option<T>, String>;
-    fn delete(&self, aggregate: &T) -> FrameworkResult<()>;
+    fn delete(&self, aggregate: &T) -> InternalResult<()>;
 }
 
 // ── Registry ──
@@ -143,7 +143,7 @@ pub fn check_all() -> Vec<DomainViolation> {
 /// or forwarded to other services.
 pub trait EventStore: fmt::Debug + Send + Sync {
     /// Store a domain event.
-    fn store(&self, event: &dyn DomainEvent) -> FrameworkResult<()>;
+    fn store(&self, event: &dyn DomainEvent) -> InternalResult<()>;
 
     /// Get all events for a specific aggregate, ordered by occurrence.
     fn events_for(&self, domain: &str, aggregate_id: &str) -> Result<Vec<Box<dyn DomainEvent>>, String>;
@@ -167,10 +167,10 @@ pub trait Projection: fmt::Debug + Send + Sync {
     fn domain(&self) -> &str;
 
     /// Handle a domain event and update the read model.
-    fn handle(&self, event: &dyn DomainEvent) -> FrameworkResult<()>;
+    fn handle(&self, event: &dyn DomainEvent) -> InternalResult<()>;
 
     /// Rebuild the projection from scratch.
-    fn rebuild(&self, store: &dyn EventStore) -> FrameworkResult<()> {
+    fn rebuild(&self, store: &dyn EventStore) -> InternalResult<()> {
         let events = store.events_since(0)?;
         for event in &events {
             if event.domain() == self.domain() {

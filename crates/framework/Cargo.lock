@@ -801,6 +801,15 @@ name = "viontest"
 version = "0.1.0"
 
 [[package]]
+name = "viontin-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "viontin-framework"
 version = "0.1.0"
 dependencies = [
@@ -810,10 +819,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "thiserror",
  "tokio",
  "ureq",
  "viontest",
+ "viontin-core",
  "viontin-orm",
 ]
 
@@ -822,6 +831,7 @@ name = "viontin-orm"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "viontin-core",
 ]
 
 [[package]]

@@ -3,53 +3,49 @@ pub mod auth;
 pub mod cache;
 pub mod cli;
 pub mod collection;
-pub mod contract;
-#[cfg(feature = "orm")]
-pub mod controller;
-#[cfg(feature = "orm")]
-pub mod service;
 pub mod config;
+pub mod controllers;
 pub mod csrf;
 pub mod db;
-#[cfg(feature = "orm")]
-pub mod orm;
 pub mod debug;
 #[cfg(feature = "domain")]
 pub mod domain;
 pub mod encryption;
-pub mod entity;
+pub mod entities;
 pub mod env;
-pub mod error;
 pub mod events;
-pub mod fs;
+pub mod filesystem;
 pub mod gem;
 pub mod http;
-#[cfg(feature = "http-client")]
-pub mod http_client;
-pub mod lang;
+pub mod localization;
 pub mod log;
 pub mod mail;
 pub mod middleware;
-pub mod model;
-pub mod module;
-pub mod notif;
-pub mod page;
-pub mod path;
-pub mod query_log;
+pub mod models;
+pub mod modules;
+pub mod notification;
+#[cfg(feature = "orm")]
+pub mod orm;
+pub mod pagination;
 pub mod queue;
-pub mod repository;
-pub mod rate;
+pub mod rate_limit;
+pub mod repositories;
 pub mod route;
 pub mod schedule;
 pub mod semver;
 pub mod server;
-#[cfg(feature = "async")]
-pub mod server_async;
+pub mod services;
 pub mod session;
 pub mod storage;
 pub mod support;
 pub mod testing;
-pub mod validator;
+pub mod validators;
 pub mod ws;
 
-pub use error::{FrameworkError, Result, SourceLocation};
+// Re-export core types from viontin-core
+pub use viontin_core::{InternalError, InternalResult, SourceLocation, ErrorReport};
+pub use viontin_core::{Request, Response, StatusCode, Method, Headers, Uri, Cookie};
+pub use viontin_core::{Logger, LogHandler, LogEntry, LogLevel, Log};
+pub use viontin_core::{Connection, ConnectionPool, DbConfig, Row, Value};
+pub use viontin_core::{Entity};
+pub use viontin_core::{dump, dd, Profiler, benchmark, memory_usage, MemoryStats, is_debug_mode, debug_only, when_local};

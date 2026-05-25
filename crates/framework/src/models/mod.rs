@@ -6,7 +6,7 @@
 //! Requires `features = ["orm"]` on `viontin-framework`.
 
 use crate::db::{Connection, Row, Value};
-use crate::entity::Entity;
+use crate::entities::Entity;
 
 /// Active-record style Model — default convenience trait.
 ///

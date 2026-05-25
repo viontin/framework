@@ -8,7 +8,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use viontin_framework::contract::{ServiceContract, ServiceRegistry};
+//! use viontin_framework::service::contracts::{ServiceContract, ServiceRegistry};
 //!
 //! // Define the contract
 //! pub struct BillingService;
@@ -114,7 +114,7 @@ impl ServiceRegistry {
 /// so the caller never knows if the service is local or remote.
 ///
 /// ```rust,ignore
-/// use viontin_framework::contract::{RemoteServiceAdapter, ServiceRegistry};
+/// use viontin_framework::service::contracts::{RemoteServiceAdapter, ServiceRegistry};
 ///
 /// let adapter = RemoteServiceAdapter::new("billing", "http://billing-service:8080");
 /// registry.add(adapter);

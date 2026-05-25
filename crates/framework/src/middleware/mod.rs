@@ -402,15 +402,15 @@ impl Middleware for RateLimitMiddleware {
     fn handle(&self, req: &mut Request, next: &dyn Fn(&mut Request) -> Response) -> Response {
         let key = format!("{}:{}", self.key_prefix, req.uri.path);
 
-        if crate::rate::too_many_attempts(&key, self.max_attempts) {
-            let retry_after = crate::rate::available_in(&key);
+        if crate::rate_limit::too_many_attempts(&key, self.max_attempts) {
+            let retry_after = crate::rate_limit::available_in(&key);
             let mut res = Response::html("Too Many Requests")
                 .with_header("Retry-After", retry_after.to_string());
             res.status = StatusCode(429);
             return res;
         }
 
-        crate::rate::hit(&key, self.decay_seconds);
+        crate::rate_limit::hit(&key, self.decay_seconds);
         next(req)
     }
 }
