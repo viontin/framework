@@ -3,6 +3,9 @@
 // Viontest provides: expect, describe, arch, test runner.
 // Framework wraps it so users can access via viontin::testing::*.
 
+mod test_client;
+pub use test_client::TestClient;
+
 pub use viontest::{
     expect, Expect, ExpectPool,
     describe, test, it, covers,

@@ -42,6 +42,10 @@ fn load_env_at(path: &Path) -> Result<(), String> {
                 value = value[1..value.len()-1].to_string();
             }
             if std::env::var(&key).is_err() {
+                // SAFETY: set_var is called here during the single-threaded boot phase
+                // (EnvProvider runs before any threads are spawned). The `.env` file
+                // is loaded once at startup, so there is no concurrent access to
+                // environment variables from other threads.
                 unsafe { std::env::set_var(&key, &value); }
                 vars.insert(key, value);
             }
