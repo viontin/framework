@@ -20,6 +20,6 @@ pub mod hash;
 pub mod str;
 pub mod url;
 
-pub use hash::{SimpleHasher, hex_digest, quick_hash, random_token};
+pub use hash::{SimpleHasher, BcryptHasher, hex_digest, quick_hash, random_token};
 pub use str::{truncate, kebab_case, snake_case, slug, camel_case, pascal_case, random, pluralize};
 pub use url::{url_decode, url_encode, parse_query, build_query, is_valid_url};

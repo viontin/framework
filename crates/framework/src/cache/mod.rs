@@ -118,6 +118,10 @@ impl std::fmt::Debug for Cache {
 }
 impl Cache {
     pub fn with_driver(d: impl CacheDriver + 'static) -> Self { Cache { driver: Box::new(d), prefix: String::new() } }
+
+    pub fn memory() -> Self { Cache::with_driver(MemoryCache::new()) }
+    pub fn file(path: impl Into<std::path::PathBuf>) -> Self { Cache::with_driver(FileCache::new(path)) }
+    pub fn null() -> Self { Cache::with_driver(NullCache) }
     pub fn with_prefix(mut self, p: impl Into<String>) -> Self { self.prefix = p.into(); self }
     fn p(&self, k: &str) -> String { if self.prefix.is_empty() { k.to_string() } else { format!("{}:{}", self.prefix, k) } }
     pub fn get(&self, key: &str) -> Option<String> { self.driver.get(&self.p(key)) }

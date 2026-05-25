@@ -17,6 +17,8 @@ ureq = { version = "2", features = ["json"], optional = true }
 ctrlc = { version = "3", optional = true }
 aes-gcm = { version = "0.10", optional = true }
 sha2 = { version = "0.10", optional = true }
+bcrypt = "0.16"
+lettre = { version = "0.11", optional = true, default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 
 [features]
 async = ["tokio"]
@@ -25,4 +27,5 @@ orm = ["viontin-orm"]
 http-client = ["ureq"]
 shutdown = ["ctrlc"]
 aes = ["aes-gcm", "sha2"]
+smtp = ["lettre"]
 default = []

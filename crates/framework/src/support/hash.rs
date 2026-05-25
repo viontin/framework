@@ -33,3 +33,29 @@ pub fn random_token(len: usize) -> String {
     let mut state = seed as u64;
     (0..len).map(|_| { state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); (b'a' + ((state >> 33) as u8 % 26)) as char }).collect()
 }
+
+/// Bcrypt-based password hasher.
+#[derive(Debug)]
+pub struct BcryptHasher {
+    cost: u32,
+}
+
+impl BcryptHasher {
+    pub fn new(cost: u32) -> Self {
+        BcryptHasher { cost: cost.max(4).min(14) }
+    }
+}
+
+impl Default for BcryptHasher {
+    fn default() -> Self { BcryptHasher::new(10) }
+}
+
+impl crate::support::Hasher for BcryptHasher {
+    fn name(&self) -> &str { "bcrypt" }
+    fn hash(&self, value: &str) -> String {
+        bcrypt::hash(value, self.cost).unwrap_or_else(|_| String::new())
+    }
+    fn verify(&self, value: &str, hash: &str) -> bool {
+        bcrypt::verify(value, hash).unwrap_or(false)
+    }
+}
