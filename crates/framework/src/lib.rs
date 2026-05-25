@@ -24,7 +24,6 @@ pub mod middleware;
 pub mod models;
 pub mod modules;
 pub mod notification;
-#[cfg(feature = "orm")]
 pub mod orm;
 pub mod pagination;
 pub mod queue;

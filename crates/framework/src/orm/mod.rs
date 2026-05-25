@@ -15,7 +15,6 @@
 //! the framework. This module is purely for convenience when you want
 //! both framework and ORM in one place.
 
-#![cfg(feature = "orm")]
 
 pub use viontin_orm::{
     Value, Row, DbConfig,

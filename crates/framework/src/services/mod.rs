@@ -9,16 +9,13 @@
 
 pub mod contracts;
 
-#[cfg(feature = "orm")]
 use crate::{Entity, InternalError, InternalResult, Value};
-#[cfg(feature = "orm")]
 use crate::repositories::Repository;
 
 /// Business logic layer between controllers and repositories.
 ///
 /// A `Service` delegates persistence to a `Repository` and adds
 /// business logic, validation, and cross-cutting concerns.
-#[cfg(feature = "orm")]
 pub trait Service<M: Entity>: std::fmt::Debug + Send + Sync {
     fn repo(&self) -> &dyn Repository<M>;
 
@@ -67,21 +64,18 @@ pub trait Service<M: Entity>: std::fmt::Debug + Send + Sync {
 }
 
 /// Default implementation with full delegation.
-#[cfg(feature = "orm")]
 #[derive(Debug)]
 pub struct DefaultService<M: Entity, R: Repository<M>> {
     repo: R,
     _marker: std::marker::PhantomData<M>,
 }
 
-#[cfg(feature = "orm")]
 impl<M: Entity, R: Repository<M>> DefaultService<M, R> {
     pub fn new(repo: R) -> Self {
         DefaultService { repo, _marker: std::marker::PhantomData }
     }
 }
 
-#[cfg(feature = "orm")]
 impl<M: Entity, R: Repository<M>> Service<M> for DefaultService<M, R> {
     fn repo(&self) -> &dyn Repository<M> { &self.repo }
 }

@@ -9,7 +9,5 @@ pub trait Controller: std::fmt::Debug + Send + Sync + 'static {
     fn handle(&self, req: &Request) -> Response;
 }
 
-#[cfg(feature = "orm")]
 pub mod defaults;
-#[cfg(feature = "orm")]
 pub use defaults::{HandlesCrud, DefaultController};

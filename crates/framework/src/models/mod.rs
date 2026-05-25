@@ -25,7 +25,6 @@ pub trait Model: Entity {
     fn after_delete(&self) -> Result<(), String> { Ok(()) }
 
     /// Save (insert or update) — uses self.connection().
-    #[cfg(feature = "orm")]
     fn save(&mut self) -> Result<Self, String> {
         self.before_save()?;
         let values = self.to_values();
@@ -37,7 +36,6 @@ pub trait Model: Entity {
     }
 
     /// Delete — uses self.connection().
-    #[cfg(feature = "orm")]
     fn delete(&self) -> Result<u64, String> {
         self.before_delete()?;
         use viontin_orm::QueryBuilder;
@@ -49,7 +47,6 @@ pub trait Model: Entity {
     }
 
     /// Get all.
-    #[cfg(feature = "orm")]
     fn all(conn: &dyn Connection) -> Result<Vec<Self>, String> {
         use viontin_orm::QueryBuilder;
         QueryBuilder::table(conn, Self::table_name())
@@ -57,7 +54,6 @@ pub trait Model: Entity {
     }
 
     /// Find by primary key.
-    #[cfg(feature = "orm")]
     fn find(conn: &dyn Connection, id: i64) -> Result<Option<Self>, String> {
         use viontin_orm::QueryBuilder;
         let rows = QueryBuilder::table(conn, Self::table_name())
@@ -66,14 +62,12 @@ pub trait Model: Entity {
     }
 
     /// Create from column data.
-    #[cfg(feature = "orm")]
     fn create(conn: &dyn Connection, data: Vec<(&str, Value)>) -> Result<i64, String> {
         use viontin_orm::QueryBuilder;
         QueryBuilder::table(conn, Self::table_name()).insert(data)
     }
 
     /// Update by primary key.
-    #[cfg(feature = "orm")]
     fn update(conn: &dyn Connection, id: i64, data: Vec<(&str, Value)>) -> Result<u64, String> {
         use viontin_orm::QueryBuilder;
         QueryBuilder::table(conn, Self::table_name())
@@ -81,7 +75,6 @@ pub trait Model: Entity {
     }
 
     /// Delete by primary key.
-    #[cfg(feature = "orm")]
     fn delete_by_id(conn: &dyn Connection, id: i64) -> Result<u64, String> {
         use viontin_orm::QueryBuilder;
         QueryBuilder::table(conn, Self::table_name())

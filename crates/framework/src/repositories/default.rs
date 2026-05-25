@@ -2,7 +2,6 @@ use crate::db::{Connection, Value};
 use crate::entities::Entity;
 use crate::repositories::Repository;
 
-#[cfg(feature = "orm")]
 pub struct QueryScoped<'a, M: Entity, R: Repository<M> + 'a> {
     repo: &'a R,
     conn: &'a dyn Connection,
@@ -10,7 +9,6 @@ pub struct QueryScoped<'a, M: Entity, R: Repository<M> + 'a> {
     _marker: std::marker::PhantomData<M>,
 }
 
-#[cfg(feature = "orm")]
 impl<'a, M: Entity, R: Repository<M>> QueryScoped<'a, M, R> {
     pub fn new(repo: &'a R) -> Self {
         let conn = repo.connection();

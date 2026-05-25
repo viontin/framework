@@ -9,7 +9,6 @@ pub mod query_log;
 // Always re-export from viontin-core
 pub use viontin_core::{Value, Row, DbConfig, Connection, ConnectionPool};
 
-#[cfg(feature = "orm")]
 mod compat {
     /// Lightweight raw SQL query builder — only available when `orm` is enabled.
     /// For the full-featured builder, use `viontin_orm::QueryBuilder` directly.
@@ -83,5 +82,4 @@ mod compat {
     }
 }
 
-#[cfg(feature = "orm")]
 pub use compat::QueryBuilder;
