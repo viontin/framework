@@ -68,13 +68,26 @@ pub struct WsServer { router: Arc<Router>, routes: HandlerMap, }
 
 impl WsServer {
     pub fn run(&self, addr: &str) -> IoResult<()> {
+        #[cfg(feature = "shutdown")]
+        if let Err(e) = ctrlc::set_handler(move || {
+            eprintln!("\n  [server] Shutdown requested...");
+            crate::server::request_shutdown();
+        }) {
+            eprintln!("  [server] Warning: could not set signal handler: {}", e);
+        }
+
         let listener = std::net::TcpListener::bind(addr).map_err(|e| format!("Bind failed: {}", e))?;
+        listener.set_nonblocking(true).ok();
         println!("  Server on http://{} (WebSocket ready)", addr);
         let routes = self.routes.clone();
         let router = self.router.clone();
-        for stream in listener.incoming() {
-            match stream {
-                Ok(s) => {
+        loop {
+            if crate::server::is_shutdown_requested() {
+                println!("  [server] Stopping accept loop...");
+                break;
+            }
+            match listener.accept() {
+                Ok((s, _)) => {
                     let routes = routes.clone();
                     let router = router.clone();
                     crate::middleware::set_connection_timeout(&s, 30);
@@ -84,9 +97,14 @@ impl WsServer {
                         }
                     });
                 }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    continue;
+                }
                 Err(e) => eprintln!("  [ws] {}", e),
             }
         }
+        println!("  [server] Graceful shutdown complete.");
         Ok(())
     }
 }
@@ -115,7 +133,7 @@ pub fn handle_conn(stream: TcpStream, router: &Router, routes: &HandlerMap) -> I
 
     let upgrade = headers.get("upgrade").map(|s| s.as_str()).unwrap_or("");
     if *method != "GET" || upgrade.to_lowercase() != "websocket" {
-        let uri = Uri::parse(path).unwrap_or_default();
+        let uri = Uri::parse(path);
         let mut h = Headers::new();
         for (k, v) in &headers { h.set(k, v); }
         let mut request = Request::new(Method::parse(method), uri, h, Vec::new());
@@ -127,7 +145,7 @@ pub fn handle_conn(stream: TcpStream, router: &Router, routes: &HandlerMap) -> I
     }
 
     let key = headers.get("sec-websocket-key").ok_or_else(|| "Missing Sec-WebSocket-Key".to_string())?;
-    let routes = routes.lock().unwrap();
+    let routes = routes.lock().map_err(|e| e.to_string())?;
     let (_config, handler) = routes.iter().find(|(p, _)| path.starts_with(p.as_str()))
         .map(|(_, v)| v).ok_or_else(|| format!("No handler for {}", path))?;
     let handler = handler.clone();
@@ -179,6 +197,36 @@ fn ws_accept_key(key: &str) -> String {
     const MAGIC: &str = "258EAFA5-E914-47DA-95CA-5AB5E16B09EC";
     let hash = sha1(format!("{}{}", key.trim(), MAGIC).as_bytes());
     base64::encode(&hash)
+}
+
+// ── Global WebSocket Registry ──
+
+use std::sync::OnceLock;
+
+static GLOBAL_WS: OnceLock<HandlerMap> = OnceLock::new();
+
+fn global_routes() -> &'static HandlerMap {
+    GLOBAL_WS.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+}
+
+/// Register a WebSocket handler at a path. Call from a ServiceProvider's
+/// `register()` or `boot()` method.
+pub fn add_ws(path: &str, handler: impl WebSocketHandler + 'static) {
+    if let Ok(mut r) = global_routes().lock() {
+        r.insert(path.into(), (WebSocketConfig::default(), Arc::new(handler)));
+    }
+}
+
+/// Register a WebSocket handler with custom config.
+pub fn add_ws_with_config(path: &str, config: WebSocketConfig, handler: impl WebSocketHandler + 'static) {
+    if let Ok(mut r) = global_routes().lock() {
+        r.insert(path.into(), (config, Arc::new(handler)));
+    }
+}
+
+/// Build a WsServer from the global WebSocket registry and a Router.
+pub fn build_server(router: Router) -> WsServer {
+    WsServer { router: Arc::new(router), routes: global_routes().clone() }
 }
 
 #[cfg(test)]

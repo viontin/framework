@@ -33,8 +33,23 @@ impl Router {
         self
     }
 
+    /// Internal route addition without middleware wrapping (used by route module).
+    pub fn add_route_internal(mut self, method: Method, path: &str, h: Handler) -> Self {
+        self.routes.push(RouteEntry { method, path: path.into(), handler: h, middlewares: None });
+        self
+    }
+
+    /// Push a route directly (used by route module's apply_to_router).
+    /// Takes `&mut self` instead of consuming self.
+    pub fn push_route(&mut self, method: Method, path: String, handler: Handler) {
+        self.routes.push(RouteEntry { method, path, handler, middlewares: None });
+    }
+
     pub fn get(self, path: &str, h: Handler) -> Self { self.add_route(Method::Get, path, h, None) }
     pub fn post(self, path: &str, h: Handler) -> Self { self.add_route(Method::Post, path, h, None) }
+    pub fn put(self, path: &str, h: Handler) -> Self { self.add_route(Method::Put, path, h, None) }
+    pub fn patch(self, path: &str, h: Handler) -> Self { self.add_route(Method::Patch, path, h, None) }
+    pub fn delete(self, path: &str, h: Handler) -> Self { self.add_route(Method::Delete, path, h, None) }
     pub fn any(self, path: &str, h: Handler) -> Self {
         let mut r = self;
         for m in &[Method::Get, Method::Post, Method::Put, Method::Delete] {
@@ -45,6 +60,13 @@ impl Router {
 
     pub fn get_with(self, path: &str, h: Handler, mw: MiddlewareChain) -> Self { self.add_route(Method::Get, path, h, Some(mw)) }
     pub fn post_with(self, path: &str, h: Handler, mw: MiddlewareChain) -> Self { self.add_route(Method::Post, path, h, Some(mw)) }
+
+    pub fn extend(mut self, other: Router) -> Self {
+        self.routes.extend(other.routes);
+        self
+    }
+
+    pub fn is_empty_having_routes(&self) -> bool { self.routes.is_empty() }
 
     pub fn with_global_middleware(mut self, mw: MiddlewareChain) -> Self {
         self.global_middlewares = Some(Arc::new(mw)); self
@@ -60,7 +82,7 @@ impl Router {
             match std::fs::read(&full_path) {
                 Ok(bytes) => {
                     let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-                    Response::ok().with_header("content-type", mime_type(ext)).with_body(bytes)
+                    Response::ok().header("content-type", mime_type(ext)).with_body(bytes)
                 }
                 Err(_) => Response::new(StatusCode::NOT_FOUND).with_body("Not Found"),
             }
@@ -78,9 +100,11 @@ impl Router {
         self
     }
 
-    pub fn extend_from_registry(mut self) -> Self {
-        for (m, p, h) in crate::route::take_handlers() {
-            self.routes.push(RouteEntry { method: m, path: p, handler: h, middlewares: None });
+    pub fn extend_from_registry(self) -> Self {
+        // Routes are now built by RouteProvider::boot()
+        // If routes were registered directly, try to retrieve the router
+        if let Some(router) = crate::route::take_router() {
+            return router;
         }
         self
     }
@@ -102,17 +126,28 @@ impl Router {
             } else {
                 handler_fn(&mut request)
             }
+        } else if self.routes.iter().any(|r| path_matches(&r.path, &path)) {
+            // Path matches but method doesn't
+            Response::new(StatusCode::METHOD_NOT_ALLOWED).with_body("Method Not Allowed")
         } else {
             self.not_found.as_ref()
-                .map_or_else(|| Response::not_found().with_body("404"), |h| h(request))
+                .map_or_else(|| Response::not_found().with_body("404"), |h| h(std::mem::take(&mut request)))
         }
     }
+}
+
+fn is_wildcard(s: &str) -> bool {
+    s == "*" || s.starts_with('*')
+}
+
+fn wildcard_name(s: &str) -> &str {
+    if s == "*" { "path" } else { &s[1..] }
 }
 
 fn path_matches(p: &str, r: &str) -> bool {
     let pp: Vec<&str> = p.split('/').collect();
     let rp: Vec<&str> = r.split('/').collect();
-    if let Some(wild_pos) = pp.iter().position(|&s| s == "*") && pp.len() - 1 <= rp.len() {
+    if let Some(wild_pos) = pp.iter().position(|&s| is_wildcard(s)) && pp.len() - 1 <= rp.len() {
         return pp[..wild_pos].iter().zip(rp.iter()).all(|(a, b)| a.starts_with(':') || a == b);
     }
     pp.len() == rp.len() && pp.iter().zip(rp.iter()).all(|(a, b)| a.starts_with(':') || a == b)
@@ -123,7 +158,12 @@ fn route_params(pat: &str, req: &str) -> HashMap<String, String> {
     let pp: Vec<&str> = pat.split('/').collect();
     let rp: Vec<&str> = req.split('/').collect();
     for (a, b) in pp.iter().zip(rp.iter()) {
-        if *a == "*" { p.insert("path".into(), rp[pp.iter().position(|&s| s == "*").unwrap()..].join("/")); break; }
+        if is_wildcard(a) {
+            if let Some(wild_idx) = pp.iter().position(|&s| is_wildcard(s)) {
+                p.insert(wildcard_name(a).into(), rp[wild_idx..].join("/"));
+            }
+            break;
+        }
         if a.starts_with(':') { p.insert(a[1..].into(), (*b).into()); }
     }
     p
