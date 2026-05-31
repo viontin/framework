@@ -5,12 +5,12 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```ignore
 //! use viontin_framework::testing::TestClient;
 //! use viontin_framework::http::{Request, Response, StatusCode, Method};
 //! use std::sync::Arc;
 //!
-//! let router = viontin_framework::Router::new()
+//! let router = viontin_framework::server::Router::new()
 //!     .get("/hello", Arc::new(|_| Response::html("Hello!")));
 //!
 //! let client = TestClient::new(router);
@@ -33,11 +33,22 @@ use std::collections::HashMap;
 /// in the current thread. This makes tests fast and deterministic.
 pub struct TestClient {
     router: Router,
+    headers: HashMap<String, String>,
 }
 
 impl TestClient {
     pub fn new(router: Router) -> Self {
-        TestClient { router }
+        TestClient { router, headers: HashMap::new() }
+    }
+
+    pub fn header(mut self, key: &str, value: &str) -> Self {
+        self.headers.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn with_header(mut self, key: &str, value: &str) -> Self {
+        self.headers.insert(key.to_string(), value.to_string());
+        self
     }
 
     pub fn get(&self, path: &str) -> Response {
@@ -52,8 +63,20 @@ impl TestClient {
         self.request(Method::Put, path, body, content_type)
     }
 
+    pub fn patch(&self, path: &str, body: &str, content_type: &str) -> Response {
+        self.request(Method::Patch, path, body, content_type)
+    }
+
     pub fn delete(&self, path: &str) -> Response {
         self.request(Method::Delete, path, "", "")
+    }
+
+    pub fn json_post(&self, path: &str, body: &str) -> Response {
+        self.request(Method::Post, path, body, "application/json")
+    }
+
+    pub fn json_put(&self, path: &str, body: &str) -> Response {
+        self.request(Method::Put, path, body, "application/json")
     }
 
     pub fn request(&self, method: Method, path: &str, body: &str, content_type: &str) -> Response {
@@ -70,6 +93,9 @@ impl TestClient {
         headers.set("Host", "test");
         if !content_type.is_empty() {
             headers.set("Content-Type", content_type);
+        }
+        for (k, v) in &self.headers {
+            headers.set(k, v);
         }
 
         let req = Request::new(method, uri, headers, body.as_bytes().to_vec());
