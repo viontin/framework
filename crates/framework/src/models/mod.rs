@@ -80,6 +80,40 @@ pub trait Model: Entity {
         QueryBuilder::table(conn, Self::table_name())
             .where_eq(Self::primary_key(), id).delete()
     }
+
+    // ── Relationships ──
+
+    /// Get all child records linked by `foreign_key = self.id()`.
+    fn has_many<Child: Model>(&self, foreign_key: &str) -> Result<Vec<Child>, String> {
+        use viontin_orm::QueryBuilder;
+        QueryBuilder::table(self.connection(), Child::table_name())
+            .where_eq(foreign_key, self.id())
+            .get()?.into_iter().map(|r| Child::from_row(&r)).collect()
+    }
+
+    /// Get the parent record linked by `foreign_key = parent.id()`.
+    fn belongs_to<Parent: Model>(&self, foreign_key: &str) -> Result<Option<Parent>, String> {
+        let fk_value = self.foreign_key_value(foreign_key)?;
+        use viontin_orm::QueryBuilder;
+        let rows = QueryBuilder::table(self.connection(), Parent::table_name())
+            .where_eq(Parent::primary_key(), fk_value)
+            .get()?;
+        rows.into_iter().next().map(|r| Parent::from_row(&r)).transpose()
+    }
+
+    /// Get the value of a foreign key column from this model.
+    /// Override if your column names differ from the default pattern.
+    fn foreign_key_value(&self, foreign_key: &str) -> Result<i64, String> {
+        let values = self.to_values();
+        values.iter()
+            .find(|(k, _)| *k == foreign_key)
+            .and_then(|(_, v)| match v {
+                Value::Int(i) => Some(*i),
+                Value::Text(t) => t.parse().ok(),
+                _ => None,
+            })
+            .ok_or_else(|| format!("Foreign key '{}' not found on {}", foreign_key, Self::table_name()))
+    }
 }
 
 

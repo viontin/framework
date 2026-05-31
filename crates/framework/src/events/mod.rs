@@ -1,58 +1,63 @@
-use std::collections::HashMap;
-use std::fmt;
+//! Event system — pub/sub event dispatching.
+//!
+//! Wraps viontin_core::EventDispatcher and adds framework-specific
+//! convenience types (Subscriber, GenericEvent).
 
-pub trait Event: fmt::Debug + Send + Sync + 'static {}
+pub use viontin_core::{Event, EventDispatcher, Listener};
 
-pub trait Listener: fmt::Debug + Send + Sync {
-    fn listens(&self) -> Vec<&'static str>;
-    fn handle(&self, event: &dyn Event);
+use std::sync::Mutex;
+use std::sync::OnceLock;
+
+/// A subscriber can register multiple listeners at once.
+pub trait Subscriber: Send + Sync {
+    fn subscribe(&self, dispatcher: &mut EventDispatcher);
 }
 
-pub trait Subscriber: fmt::Debug + Send + Sync {
-    fn subscribe(&self, dispatcher: &mut dyn Subscribable);
-}
-
-pub trait Subscribable: fmt::Debug + Send + Sync {
-    fn listen(&mut self, event: &'static str, listener: Box<dyn Listener>);
-}
-
+/// Generic event for ad-hoc usage without defining custom types.
 #[derive(Debug, Clone)]
 pub struct GenericEvent {
     pub name: String,
     pub payload: Option<String>,
 }
 
-impl Event for GenericEvent {}
-
-#[derive(Debug, Default)]
-pub struct EventDispatcher {
-    listeners: HashMap<&'static str, Vec<Box<dyn Listener>>>,
-}
-
-impl EventDispatcher {
-    pub fn new() -> Self { EventDispatcher { listeners: HashMap::new() } }
-
-    pub fn dispatch(&self, event: &dyn Event) {
-        let type_name = std::any::type_name_of_val(event);
-        if let Some(listeners) = self.listeners.get(type_name) {
-            for listener in listeners {
-                listener.handle(event);
-            }
-        }
-        if let Some(wildcards) = self.listeners.get("*") {
-            for listener in wildcards {
-                listener.handle(event);
-            }
-        }
-    }
-
-    pub fn add_subscriber(&mut self, subscriber: impl Subscriber + 'static) {
-        subscriber.subscribe(self);
+impl Event for GenericEvent {
+    fn event_name(&self) -> &'static str {
+        Box::leak(self.name.clone().into_boxed_str())
     }
 }
 
-impl Subscribable for EventDispatcher {
-    fn listen(&mut self, event: &'static str, listener: Box<dyn Listener>) {
-        self.listeners.entry(event).or_default().push(listener);
+// ── Global Dispatcher ──
+
+static GLOBAL: OnceLock<Mutex<EventDispatcher>> = OnceLock::new();
+
+fn global() -> &'static Mutex<EventDispatcher> {
+    GLOBAL.get_or_init(|| Mutex::new(EventDispatcher::new()))
+}
+
+pub fn init(dispatcher: EventDispatcher) {
+    if let Ok(mut g) = global().lock() { *g = dispatcher; }
+}
+
+pub fn dispatch<E: Event>(event: &E) {
+    if let Ok(g) = global().lock() { g.dispatch(event); }
+}
+
+pub fn dispatch_all(events: &[Box<dyn std::any::Any + Send + Sync>]) {
+    if let Ok(g) = global().lock() {
+        for event in events {
+            g.dispatch_any(event.as_ref());
+        }
+    }
+}
+
+pub fn subscribe(subscriber: impl Subscriber) {
+    if let Ok(mut g) = global().lock() {
+        subscriber.subscribe(&mut g);
+    }
+}
+
+pub fn listen_wildcard(f: impl Fn(&str, &dyn std::any::Any) + Send + Sync + 'static) {
+    if let Ok(mut g) = global().lock() {
+        g.listen_wildcard(f);
     }
 }

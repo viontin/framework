@@ -1,13 +1,11 @@
 //! Framework database layer.
 //!
-//! Core types (Value, Row, DbConfig, Connection, ConnectionPool) come from
-//! viontin-core. When `features = ["orm"]` is enabled, the ORM's QueryBuilder
-//! is also available.
+//! Database types come from viontin-orm.
 
 pub mod query_log;
 
-// Always re-export from viontin-core
-pub use viontin_core::{Value, Row, DbConfig, Connection, ConnectionPool};
+// Re-export from viontin-orm
+pub use viontin_orm::{Value, Row, DbConfig, Connection, ConnectionPool, Transaction, with_transaction};
 
 mod compat {
     /// Lightweight raw SQL query builder — only available when `orm` is enabled.
