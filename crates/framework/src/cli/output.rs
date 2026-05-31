@@ -43,6 +43,10 @@ impl Output {
         println!("{}", text);
     }
 
+    pub fn new_line(&self) {
+        println!();
+    }
+
     pub fn info(&self, text: &str) {
         println!("  {} {}", self.style("ℹ", "34"), text);
     }

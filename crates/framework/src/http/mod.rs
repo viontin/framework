@@ -413,6 +413,16 @@ impl Response {
             }
         }
     }
+    pub fn forbidden() -> Self {
+        let mut r = Response::new(StatusCode::FORBIDDEN);
+        r.headers.set("content-type", "text/html; charset=utf-8");
+        r
+    }
+
+    pub fn content_type(&self) -> Option<&str> {
+        self.headers.content_type()
+    }
+
     pub fn redirect(url: &str) -> Self {
         let mut r = Response::new(StatusCode::FOUND);
         r.headers.set("location", url);
@@ -485,6 +495,35 @@ impl Response {
         let mut bytes = raw.into_bytes();
         bytes.extend_from_slice(&self.body);
         bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_forbidden_status() {
+        let resp = Response::forbidden();
+        assert_eq!(resp.status, StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn test_content_type_html() {
+        let resp = Response::html("<h1>Hello</h1>");
+        assert_eq!(resp.content_type(), Some("text/html; charset=utf-8"));
+    }
+
+    #[test]
+    fn test_content_type_json() {
+        let resp = Response::json(&serde_json::json!({"key": "val"}));
+        assert_eq!(resp.content_type(), Some("application/json"));
+    }
+
+    #[test]
+    fn test_forbidden_has_content_type() {
+        let resp = Response::forbidden();
+        assert!(resp.content_type().is_some());
     }
 }
 

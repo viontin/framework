@@ -79,6 +79,19 @@ impl Input {
         }
     }
 
+    /// Return all positional argument values in order.
+    pub fn arguments(&self) -> Vec<&str> {
+        self.raw_args.iter().skip(1).map(|s| s.as_str()).collect()
+    }
+
+    /// Check if an option was explicitly provided (regardless of value).
+    pub fn has_option(&self, name: &str) -> bool {
+        if self.parsed_options.contains_key(name) {
+            return true;
+        }
+        self.raw_args.iter().any(|a| a == &format!("--{}", name) || a.starts_with(&format!("--{}=", name)))
+    }
+
     /// Get a positional argument by name.
     pub fn argument<T: std::str::FromStr>(&self, name: &str) -> Result<T, String> {
         let sig_idx = self
@@ -152,5 +165,42 @@ impl Input {
     /// Get an option value, using `default` if not provided. Returns Err on parse failure.
     pub fn option_or_else<T: std::str::FromStr>(&self, name: &str, default: T) -> Result<T, String> {
         self.option::<T>(name).map(|v| v.unwrap_or(default))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::command::Signature;
+
+    fn parse(args: &[&str], sig: &str) -> Input {
+        let raw: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        Input::parse(&raw, &Signature::parse(sig))
+    }
+
+    #[test]
+    fn test_arguments() {
+        let input = parse(&["Alice", "Bob"], "greet {name} {other}");
+        let args = input.arguments();
+        assert_eq!(args, vec!["Alice", "Bob"]);
+    }
+
+    #[test]
+    fn test_arguments_empty() {
+        let input = parse(&[], "cmd");
+        let args: Vec<&str> = input.arguments();
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn test_has_option_true() {
+        let input = parse(&["cmd", "--name=value"], "cmd {--name=}");
+        assert!(input.has_option("name"));
+    }
+
+    #[test]
+    fn test_has_option_false() {
+        let input = parse(&["cmd"], "cmd {--name=}");
+        assert!(!input.has_option("name"));
     }
 }
