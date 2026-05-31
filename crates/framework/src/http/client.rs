@@ -65,11 +65,6 @@ impl HttpClient {
         self
     }
 
-    pub fn with_header(mut self, key: &str, value: &str) -> Self {
-        self.default_headers.insert(key.into(), value.into());
-        self
-    }
-
     fn url(&self, path: &str) -> String {
         if path.starts_with("http://") || path.starts_with("https://") {
             path.into()

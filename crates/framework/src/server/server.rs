@@ -55,7 +55,7 @@ fn handle_conn(mut stream: std::net::TcpStream, router: &Router) -> IoResult<()>
     let request_line = request_line.trim();
     if request_line.is_empty() { return Ok(()); }
     let parts: Vec<&str> = request_line.split_whitespace().collect();
-    let uri = Uri::parse(parts.get(1).unwrap_or(&""))?;
+    let uri = Uri::parse(parts.get(1).unwrap_or(&""));
     let mut headers = Headers::new();
     loop {
         let mut line = String::new(); io_err(reader.read_line(&mut line))?;

@@ -1,10 +1,9 @@
-use crate::db::{Connection, Value};
+use crate::db::Value;
 use crate::entities::Entity;
 use crate::repositories::Repository;
 
 pub struct QueryScoped<'a, M: Entity, R: Repository<M> + 'a> {
     repo: &'a R,
-    conn: &'a dyn Connection,
     qb: viontin_orm::QueryBuilder<'a>,
     _marker: std::marker::PhantomData<M>,
 }
@@ -14,7 +13,6 @@ impl<'a, M: Entity, R: Repository<M>> QueryScoped<'a, M, R> {
         let conn = repo.connection();
         QueryScoped {
             repo,
-            conn,
             qb: viontin_orm::QueryBuilder::table(conn, &repo.tbl()),
             _marker: std::marker::PhantomData,
         }

@@ -53,7 +53,7 @@ pub trait FormRequest: std::fmt::Debug + Send + Sync {
         }
         self.validate(req).map_err(|errors| {
             let body = serde_json::json!({ "errors": errors }).to_string();
-            let mut r = Response::text(&body).with_header("content-type", "application/json");
+            let mut r = Response::text(&body).header("content-type", "application/json");
             set_status(&mut r, StatusCode::BAD_REQUEST);
             r
         })

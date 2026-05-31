@@ -65,15 +65,17 @@ impl Default for DomainServiceProvider {
 }
 
 impl ServiceProvider for DomainServiceProvider {
-    fn name(&self) -> &str { "domain" }
+    fn id(&self) -> &'static str { "domain" }
+    fn depends_on(&self) -> &[&'static str] { &["config", "events"] }
 
-    fn register(&self, _app: &mut Application) {
+    fn register(&self, _app: &mut Application) -> Result<(), String> {
         for config in &self.configs {
             domain::register(config.domain.clone());
         }
+        Ok(())
     }
 
-    fn boot(&self, _app: &Application) {
+    fn boot(&self, _app: &Application) -> Result<(), String> {
         let domains = domain::domains();
         println!("  [domain] {} domain(s) registered", domains.len());
         for d in &domains {
@@ -81,5 +83,6 @@ impl ServiceProvider for DomainServiceProvider {
             let deps_str = if deps.is_empty() { "none".to_string() } else { deps };
             println!("    └── {} (allows: {})", d.name, deps_str);
         }
+        Ok(())
     }
 }

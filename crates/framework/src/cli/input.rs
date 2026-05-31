@@ -99,51 +99,58 @@ impl Input {
     }
 
     /// Check if a boolean flag was set.
-    pub fn flag(&self, name: &str) -> bool {
+    pub fn has_flag(&self, name: &str) -> bool {
         if self.parsed_flags.contains(name) {
             return true;
         }
         self.raw_args.iter().any(|a| a == &format!("--{}", name))
     }
 
-    /// Alias for `flag`.
-    pub fn has_flag(&self, name: &str) -> bool {
-        self.flag(name)
-    }
-
-    /// Get an option value by name. Returns `None` if not provided.
-    /// Returns `Some(Err(...))` if parsing fails.
-    pub fn option<T: std::str::FromStr>(&self, name: &str) -> Option<Result<T, String>> {
+    /// Get an option value by name. Returns `Ok(None)` if not provided,
+    /// `Ok(Some(value))` on successful parse, or `Err(msg)` on parse failure.
+    pub fn option<T: std::str::FromStr>(&self, name: &str) -> Result<Option<T>, String> {
         // Check parsed options first (from `--name=value` or `--name value`)
         if let Some(val) = self.parsed_options.get(name) {
-            return Some(
-                val.parse::<T>()
-                    .map_err(|_| format!("Failed to parse option '{}'", name)),
-            );
+            return val.parse::<T>()
+                .map(Some)
+                .map_err(|_| format!("Failed to parse option '{}'", name));
         }
 
         // Check raw args for `--name value` form
-        for opt in &self.signature.options {
-            if opt.name == name {
-                let mut found: Option<String> = None;
-                let mut i = 0;
-                while i < self.raw_args.len() {
-                    if self.raw_args[i] == format!("--{}", name) {
-                        if let Some(default) = &opt.default {
-                            found = Some(default.clone());
-                        } else if i + 1 < self.raw_args.len() {
-                            found = Some(self.raw_args[i + 1].clone());
-                        }
+        if let Some(opt) = self.signature.options.iter().find(|o| o.name == name) {
+            let mut found: Option<String> = None;
+            let mut i = 0;
+            while i < self.raw_args.len() {
+                if self.raw_args[i] == format!("--{}", name) {
+                    if let Some(default) = &opt.default {
+                        found = Some(default.clone());
+                    } else if i + 1 < self.raw_args.len() {
+                        found = Some(self.raw_args[i + 1].clone());
                     }
-                    i += 1;
                 }
-
-                let val = found.or_else(|| opt.default.clone());
-                return val.map(|v| v.parse::<T>()
-                            .map_err(|_| format!("Failed to parse option '{}'", name)));
+                i += 1;
             }
+
+            let val = found.or_else(|| opt.default.clone());
+            return match val {
+                Some(v) => v.parse::<T>()
+                    .map(Some)
+                    .map_err(|_| format!("Failed to parse option '{}'", name)),
+                None => Ok(None),
+            };
         }
 
-        None
+        Ok(None)
+    }
+
+    /// Get an option value with a default fallback. Never returns Err on parse failure —
+    /// falls back to `default` instead.
+    pub fn option_or<T: std::str::FromStr>(&self, name: &str, default: T) -> T {
+        self.option::<T>(name).ok().flatten().unwrap_or(default)
+    }
+
+    /// Get an option value, using `default` if not provided. Returns Err on parse failure.
+    pub fn option_or_else<T: std::str::FromStr>(&self, name: &str, default: T) -> Result<T, String> {
+        self.option::<T>(name).map(|v| v.unwrap_or(default))
     }
 }

@@ -1,8 +1,46 @@
+use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::OnceLock;
 
 pub mod database;
 pub use database::DatabaseQueue;
+
+// ── Job Registry ──
+
+static JOB_REGISTRY: OnceLock<Mutex<HashMap<String, Box<dyn JobFactory + Send + Sync>>>> = OnceLock::new();
+
+fn registry() -> &'static Mutex<HashMap<String, Box<dyn JobFactory + Send + Sync>>> {
+    JOB_REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub trait JobFactory: Send + Sync {
+    fn create(&self, payload: &str) -> Box<dyn Job>;
+}
+
+pub struct SimpleJobFactory<F: Fn(&str) -> Box<dyn Job> + Send + Sync>(F);
+
+impl<F: Fn(&str) -> Box<dyn Job> + Send + Sync> SimpleJobFactory<F> {
+    pub fn new(f: F) -> Self { SimpleJobFactory(f) }
+}
+
+impl<F: Fn(&str) -> Box<dyn Job> + Send + Sync> JobFactory for SimpleJobFactory<F> {
+    fn create(&self, payload: &str) -> Box<dyn Job> {
+        (self.0)(payload)
+    }
+}
+
+pub fn register_job(name: &str, factory: impl JobFactory + 'static) {
+    if let Ok(mut reg) = registry().lock() {
+        reg.insert(name.to_string(), Box::new(factory));
+    }
+}
+
+pub fn make_job(name: &str, payload: &str) -> Option<Box<dyn Job>> {
+    registry().lock().ok().and_then(|reg| {
+        reg.get(name).map(|f| f.create(payload))
+    })
+}
 
 pub trait Job: fmt::Debug + Send + Sync {
     fn handle(self: Box<Self>) -> Result<(), String>;
@@ -57,11 +95,18 @@ impl Queue {
 pub struct QueueWorker {
     queue: Arc<Queue>,
     running: Arc<AtomicBool>,
+    max_tries: u8,
+    sleep_millis: u64,
+    timeout_secs: Option<u64>,
 }
 
 impl fmt::Debug for QueueWorker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("QueueWorker").field("running", &self.running.load(Ordering::Relaxed)).finish()
+        f.debug_struct("QueueWorker")
+            .field("running", &self.running.load(Ordering::Relaxed))
+            .field("max_tries", &self.max_tries)
+            .field("sleep_millis", &self.sleep_millis)
+            .finish()
     }
 }
 
@@ -70,6 +115,9 @@ impl QueueWorker {
         QueueWorker {
             queue: Arc::new(queue),
             running: Arc::new(AtomicBool::new(false)),
+            max_tries: 1,
+            sleep_millis: 1000,
+            timeout_secs: None,
         }
     }
 
@@ -79,12 +127,33 @@ impl QueueWorker {
         self.running.load(Ordering::SeqCst)
     }
 
+    pub fn with_max_tries(mut self, n: u8) -> Self {
+        self.max_tries = n;
+        self
+    }
+
+    pub fn with_sleep(mut self, millis: u64) -> Self {
+        self.sleep_millis = millis;
+        self
+    }
+
+    pub fn with_timeout(mut self, secs: u64) -> Self {
+        self.timeout_secs = Some(secs);
+        self
+    }
+
     /// Start the worker loop. Blocks the current thread.
     /// Pops and processes jobs from the queue indefinitely.
     pub fn run(&self) {
         self.running.store(true, Ordering::SeqCst);
         println!("  Queue worker started");
+        let start = std::time::Instant::now();
         while self.running.load(Ordering::SeqCst) {
+            if let Some(timeout) = self.timeout_secs {
+                if start.elapsed() >= std::time::Duration::from_secs(timeout) {
+                    break;
+                }
+            }
             match self.queue.driver().pop() {
                 Some(job) => {
                     let name = job.name().to_string();
@@ -93,17 +162,35 @@ impl QueueWorker {
                     }
                 }
                 None => {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    std::thread::sleep(std::time::Duration::from_millis(self.sleep_millis));
                 }
             }
         }
         println!("  Queue worker stopped");
     }
 
+    /// Process a single job then exit.
+    pub fn run_once(&self) {
+        self.running.store(true, Ordering::SeqCst);
+        match self.queue.driver().pop() {
+            Some(job) => {
+                let name = job.name().to_string();
+                if let Err(e) = job.handle() {
+                    eprintln!("  Queue job '{}' failed: {}", name, e);
+                }
+            }
+            None => {
+                println!("  No pending jobs");
+            }
+        }
+        self.running.store(false, Ordering::SeqCst);
+    }
+
     /// Run the worker in a background thread. Returns the handle.
     pub fn run_background(&self) -> std::thread::JoinHandle<()> {
         let running = self.running.clone();
         let queue = self.queue.clone();
+        let sleep_millis = self.sleep_millis;
         std::thread::spawn(move || {
             running.store(true, Ordering::SeqCst);
             while running.load(Ordering::SeqCst) {
@@ -112,7 +199,7 @@ impl QueueWorker {
                         let _ = job.handle();
                     }
                     None => {
-                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        std::thread::sleep(std::time::Duration::from_millis(sleep_millis));
                     }
                 }
             }
@@ -122,5 +209,106 @@ impl QueueWorker {
     /// Signal the worker to stop.
     pub fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct TestJob(&'static str, Result<(), String>);
+    impl Job for TestJob {
+        fn handle(self: Box<Self>) -> Result<(), String> { self.1.clone() }
+        fn name(&self) -> &str { self.0 }
+    }
+
+    fn static_str(s: &str) -> &'static str {
+        Box::leak(s.to_string().into_boxed_str())
+    }
+
+    #[test]
+    fn test_sync_queue_push_success() {
+        let queue = Queue::sync();
+        assert!(queue.push(TestJob("ok", Ok(()))).is_ok());
+    }
+
+    #[test]
+    fn test_sync_queue_push_failure() {
+        let queue = Queue::sync();
+        let result = queue.push(TestJob("fail", Err("oops".into())));
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "oops");
+    }
+
+    #[test]
+    fn test_sync_queue_schedule_zero_delay() {
+        let queue = Queue::sync();
+        assert!(queue.schedule(0, TestJob("ok", Ok(()))).is_ok());
+    }
+
+    #[test]
+    fn test_job_registry_roundtrip() {
+        let name = static_str("test-job");
+        register_job(name, SimpleJobFactory::new(|_| Box::new(TestJob(name, Ok(())))));
+        let job = make_job(name, "");
+        assert!(job.is_some());
+        assert_eq!(job.unwrap().name(), name);
+    }
+
+    #[test]
+    fn test_job_registry_unknown_name() {
+        let job = make_job("does-not-exist", "");
+        assert!(job.is_none());
+    }
+
+    #[test]
+    fn test_simple_job_factory() {
+        let factory = SimpleJobFactory::new(|_| {
+            Box::new(TestJob("from-factory", Ok(())))
+        });
+        let job = factory.create("");
+        assert_eq!(job.name(), "from-factory");
+    }
+
+    #[test]
+    fn test_worker_run_once_with_job() {
+        let queue = Queue::sync();
+        assert!(queue.push(TestJob("once", Ok(()))).is_ok());
+        let worker = QueueWorker::new(queue);
+        worker.run_once();
+    }
+
+    #[test]
+    fn test_worker_run_once_empty() {
+        let queue = Queue::sync();
+        let worker = QueueWorker::new(queue);
+        worker.run_once();
+    }
+
+    #[test]
+    fn test_worker_stop() {
+        let queue = Queue::sync();
+        let worker = QueueWorker::new(queue);
+        assert!(!worker.is_running());
+        worker.run_background();
+        worker.stop();
+    }
+
+    #[test]
+    fn test_queue_default_is_sync() {
+        let queue = Queue::default();
+        assert_eq!(queue.driver().name(), "sync");
+    }
+
+    #[test]
+    fn test_worker_config() {
+        let queue = Queue::sync();
+        let worker = QueueWorker::new(queue)
+            .with_max_tries(3)
+            .with_sleep(500)
+            .with_timeout(10);
+        // Just verify construction works — no panic
+        worker.run_once();
     }
 }

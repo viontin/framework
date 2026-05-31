@@ -48,6 +48,7 @@ impl RateLimiter {
     pub fn hits(&self, key: &str) -> u64 { self.driver.hits(key) }
     pub fn available_in(&self, key: &str) -> u64 { self.driver.available_in(key) }
     pub fn clear(&self, key: &str) { self.driver.clear(key); }
+    /// Apply a hit (unlimited attempts).
     pub fn hit(&self, key: &str, decay_seconds: u64) { self.driver.attempt(key, u64::MAX, decay_seconds); }
 }
 
@@ -55,15 +56,32 @@ impl RateLimiter {
 
 static GLOBAL: OnceLock<RateLimiter> = OnceLock::new();
 
-pub fn init(limiter: RateLimiter) { let _ = GLOBAL.set(limiter); }
-fn global() -> &'static RateLimiter { GLOBAL.get_or_init(RateLimiter::memory) }
+impl RateLimiter {
+    /// Initialize the global singleton.
+    pub fn init(limiter: RateLimiter) { let _ = GLOBAL.set(limiter); }
 
-pub fn attempt<F, T>(key: &str, max_attempts: u64, decay_seconds: u64, f: F) -> Result<T, ()>
-where F: FnOnce() -> T { global().attempt(key, max_attempts, decay_seconds, f) }
+    /// Get the global singleton (initializes with memory backend if not set).
+    fn global() -> &'static RateLimiter { GLOBAL.get_or_init(RateLimiter::memory) }
 
-pub fn too_many_attempts(key: &str, max_attempts: u64) -> bool { global().too_many_attempts(key, max_attempts) }
-pub fn remaining(key: &str, max_attempts: u64) -> u64 { global().remaining(key, max_attempts) }
-pub fn hits(key: &str) -> u64 { global().hits(key) }
-pub fn available_in(key: &str) -> u64 { global().available_in(key) }
-pub fn clear(key: &str) { global().clear(key); }
-pub fn hit(key: &str, decay_seconds: u64) { global().hit(key, decay_seconds); }
+    /// Global attempt with rate limit check.
+    pub fn global_attempt<F, T>(key: &str, max_attempts: u64, decay_seconds: u64, f: F) -> Result<T, ()>
+    where F: FnOnce() -> T { Self::global().attempt(key, max_attempts, decay_seconds, f) }
+
+    /// Check if global rate limit is exceeded.
+    pub fn global_is_limited(key: &str, max_attempts: u64) -> bool { Self::global().too_many_attempts(key, max_attempts) }
+
+    /// Get remaining attempts from global limiter.
+    pub fn global_remaining(key: &str, max_attempts: u64) -> u64 { Self::global().remaining(key, max_attempts) }
+
+    /// Get hit count from global limiter.
+    pub fn global_hits(key: &str) -> u64 { Self::global().hits(key) }
+
+    /// Get seconds until available from global limiter.
+    pub fn global_available_in(key: &str) -> u64 { Self::global().available_in(key) }
+
+    /// Clear rate limit data from global limiter.
+    pub fn global_clear(key: &str) { Self::global().clear(key); }
+
+    /// Record a hit on the global limiter.
+    pub fn global_hit(key: &str, decay_seconds: u64) { Self::global().hit(key, decay_seconds); }
+}

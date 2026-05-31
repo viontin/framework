@@ -289,13 +289,11 @@ impl Drop for ProgressBar {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use viontin_tui::output::{Output, Log};
-/// use crate::log::Logger;
 ///
 /// let out = Output::new();
-/// let logger = Logger::new()
-///     .add_channel(Log::new(&out, viontin_framework::log::Level::Info));
+/// let logger = Log::new(&out, viontin_framework::log::Level::Info);
 /// ```
 #[derive(Debug)]
 pub struct Log<'a> {

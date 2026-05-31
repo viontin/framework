@@ -42,9 +42,12 @@ pub mod validators;
 pub mod ws;
 
 // Re-export core types from viontin-core
-pub use viontin_core::{InternalError, InternalResult, SourceLocation, ErrorReport};
-pub use viontin_core::{Request, Response, StatusCode, Method, Headers, Uri, Cookie};
-pub use viontin_core::{Logger, LogHandler, LogEntry, LogLevel, Log};
-pub use viontin_core::{Connection, ConnectionPool, DbConfig, Row, Value};
+pub use viontin_core::{CoreError, CoreErrorKind, CoreResult, SourceLocation};
+pub use viontin_core::{Container, ConfigRepository};
+pub use viontin_core::{Event, EventDispatcher, Listener};
+pub use viontin_core::Logger;
 pub use viontin_core::{Entity};
+pub use viontin_core::{Value};
 pub use viontin_core::{dump, dd, Profiler, benchmark, memory_usage, MemoryStats, is_debug_mode, debug_only, when_local};
+pub use viontin_core::{core_error, not_found, config_error};
+

@@ -5,7 +5,7 @@ pub mod validator;
 
 use std::collections::HashMap;
 use std::fmt;
-use viontin_core::InternalResult;
+use crate::CoreResult;
 
 #[derive(Debug, Clone)]
 pub struct GemMeta {
@@ -47,20 +47,20 @@ impl fmt::Display for GemKind { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt
 
 pub trait GemFacade: fmt::Debug + Send + Sync {
     fn meta(&self) -> &GemMeta;
-    fn before_build(&self) -> InternalResult<()> { Ok(()) }
-    fn after_build(&self) -> InternalResult<()> { Ok(()) }
+    fn before_build(&self) -> CoreResult<()> { Ok(()) }
+    fn after_build(&self) -> CoreResult<()> { Ok(()) }
 }
 
 pub struct SimpleGem {
     pub meta: GemMeta,
-    before_build_fn: Option<Box<dyn Fn() -> InternalResult<()> + Send + Sync>>,
-    after_build_fn: Option<Box<dyn Fn() -> InternalResult<()> + Send + Sync>>,
+    before_build_fn: Option<Box<dyn Fn() -> CoreResult<()> + Send + Sync>>,
+    after_build_fn: Option<Box<dyn Fn() -> CoreResult<()> + Send + Sync>>,
 }
 
 impl SimpleGem {
     pub fn new(meta: GemMeta) -> Self { SimpleGem { meta, before_build_fn: None, after_build_fn: None } }
-    pub fn on_before_build(mut self, f: Box<dyn Fn() -> InternalResult<()> + Send + Sync>) -> Self { self.before_build_fn = Some(f); self }
-    pub fn on_after_build(mut self, f: Box<dyn Fn() -> InternalResult<()> + Send + Sync>) -> Self { self.after_build_fn = Some(f); self }
+    pub fn on_before_build(mut self, f: Box<dyn Fn() -> CoreResult<()> + Send + Sync>) -> Self { self.before_build_fn = Some(f); self }
+    pub fn on_after_build(mut self, f: Box<dyn Fn() -> CoreResult<()> + Send + Sync>) -> Self { self.after_build_fn = Some(f); self }
 }
 
 impl fmt::Debug for SimpleGem {
@@ -73,8 +73,8 @@ impl fmt::Debug for SimpleGem {
 
 impl GemFacade for SimpleGem {
     fn meta(&self) -> &GemMeta { &self.meta }
-    fn before_build(&self) -> InternalResult<()> { self.before_build_fn.as_ref().map_or(Ok(()), |f| f()) }
-    fn after_build(&self) -> InternalResult<()> { self.after_build_fn.as_ref().map_or(Ok(()), |f| f()) }
+    fn before_build(&self) -> CoreResult<()> { self.before_build_fn.as_ref().map_or(Ok(()), |f| f()) }
+    fn after_build(&self) -> CoreResult<()> { self.after_build_fn.as_ref().map_or(Ok(()), |f| f()) }
 }
 
 #[derive(Debug)]
@@ -108,13 +108,13 @@ impl GemRegistry {
     pub fn iter(&self) -> impl Iterator<Item = (&String, &Box<dyn GemFacade>)> {
         self.installed.iter()
     }
-    pub fn before_build_all(&self) -> InternalResult<()> {
+    pub fn before_build_all(&self) -> CoreResult<()> {
         for (_, gem) in &self.installed {
             gem.before_build()?;
         }
         Ok(())
     }
-    pub fn after_build_all(&self) -> InternalResult<()> {
+    pub fn after_build_all(&self) -> CoreResult<()> {
         for (_, gem) in &self.installed {
             gem.after_build()?;
         }

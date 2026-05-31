@@ -348,19 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_ordering() {
-        struct TestProvider(u8);
-        impl std::fmt::Debug for TestProvider {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "TestProvider({})", self.0)
-            }
-        }
-        impl ServiceProvider for TestProvider {
-            fn id(&self) -> &'static str { "test" }
-            fn register(&self, _app: &mut Application) -> Result<(), String> { Ok(()) }
-            fn boot(&self, _app: &Application) -> Result<(), String> { Ok(()) }
-        }
-
+    fn test_provider_no_boot_panic() {
         let mut app = Application::new();
         app.providers.retain(|p| !matches!(p.id(), "config" | "env"));
         let result = app.run();

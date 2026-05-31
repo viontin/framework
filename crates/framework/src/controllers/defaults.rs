@@ -17,7 +17,7 @@ pub trait HandlesCrud<M: Entity + serde::Serialize + 'static>: std::fmt::Debug +
         let items = self.service().all();
         let mut res = match items {
             Ok(v) => Response::text(&serde_json::to_string(&v).unwrap_or_else(|_| "[]".into()))
-                .with_header("content-type", "application/json"),
+                .header("content-type", "application/json"),
             Err(e) => { let mut r = Response::html(&e.to_string()); set_status(&mut r, StatusCode::SERVER_ERROR); r }
         };
         self.after(&req, &mut res, "index"); res
@@ -28,7 +28,7 @@ pub trait HandlesCrud<M: Entity + serde::Serialize + 'static>: std::fmt::Debug +
         let id: i64 = req.param("id").and_then(|s| s.parse().ok()).unwrap_or(0);
         let mut res = match self.service().find(id) {
             Ok(Some(item)) => Response::text(&serde_json::to_string(&item).unwrap_or_default())
-                .with_header("content-type", "application/json"),
+                .header("content-type", "application/json"),
             Ok(None) => { let mut r = Response::html("Not found"); set_status(&mut r, StatusCode::NOT_FOUND); r }
             Err(e) => { let mut r = Response::html(&e.to_string()); set_status(&mut r, StatusCode::SERVER_ERROR); r }
         };
@@ -45,7 +45,7 @@ pub trait HandlesCrud<M: Entity + serde::Serialize + 'static>: std::fmt::Debug +
         let data = owned_to_ref(&owned_data);
         let mut res = match self.service().create(data) {
             Ok(id) => { let mut r = Response::text(&serde_json::json!({"id": id}).to_string())
-                .with_header("content-type", "application/json"); set_status(&mut r, StatusCode::CREATED); r }
+                .header("content-type", "application/json"); set_status(&mut r, StatusCode::CREATED); r }
             Err(e) => { let mut r = Response::html(&e.to_string()); set_status(&mut r, StatusCode::SERVER_ERROR); r }
         };
         self.after(&req, &mut res, "store"); res
@@ -61,7 +61,7 @@ pub trait HandlesCrud<M: Entity + serde::Serialize + 'static>: std::fmt::Debug +
         };
         let mut res = match self.service().update(id, owned_to_ref(&owned_data)) {
             Ok(affected) => Response::text(&serde_json::json!({"affected": affected}).to_string())
-                .with_header("content-type", "application/json"),
+                .header("content-type", "application/json"),
             Err(e) => { let mut r = Response::html(&e.to_string()); set_status(&mut r, StatusCode::SERVER_ERROR); r }
         };
         self.after(&req, &mut res, "update"); res

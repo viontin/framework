@@ -1,20 +1,36 @@
 //! ServiceProvider trait — the building block of application bootstrapping.
+//!
+//! Each provider has two phases:
+//! 1. **register** — bind services into the container
+//! 2. **boot** — initialize after all services are registered
+//!
+//! Providers declare dependencies via `depends_on()`. The system performs
+//! a topological sort to ensure correct ordering.
 
 use std::fmt;
-use super::Application;
+use crate::app::Application;
+use crate::env::Environment;
 
 /// A service provider registers and boots services into the application.
-///
-/// Each provider has two phases:
-/// 1. **register** — register services into the container
-/// 2. **boot** — initialize services (after all providers are registered)
 pub trait ServiceProvider: fmt::Debug + Send + Sync {
-    /// Unique name for this provider (used for `.with()` and `.without()`).
-    fn name(&self) -> &str;
+    /// Unique identifier for this provider (used for dependency ordering).
+    fn id(&self) -> &'static str;
 
-    /// Register services into the application container.
-    fn register(&self, _app: &mut Application) {}
+    /// Providers that must register BEFORE this one.
+    fn depends_on(&self) -> &[&'static str] { &[] }
 
-    /// Boot services after all providers have registered.
-    fn boot(&self, _app: &Application) {}
+    /// Priority within the same dependency level (lower = earlier).
+    fn priority(&self) -> u8 { 100 }
+
+    /// Only run in specific environments. None = all environments.
+    fn environments(&self) -> Option<&[Environment]> { None }
+
+    /// Phase 1: Register services into the container.
+    fn register(&self, _app: &mut Application) -> Result<(), String> { Ok(()) }
+
+    /// Phase 2: Initialize services after all providers have registered.
+    fn boot(&self, _app: &Application) -> Result<(), String> { Ok(()) }
+
+    /// Optional: Cleanup on graceful shutdown.
+    fn shutdown(&self, _app: &Application) -> Result<(), String> { Ok(()) }
 }

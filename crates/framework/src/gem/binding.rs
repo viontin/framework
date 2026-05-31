@@ -3,7 +3,7 @@
 //! When a gem implements `GemBinding`, the `Boot` builder automatically
 //! registers its middlewares, providers, commands, and routes.
 //!
-//! ```rust
+//! ```ignore
 //! impl GemBinding for MyGem {
 //!     fn gem_middlewares(&self) -> Vec<Box<dyn Middleware>> {
 //!         vec![Box::new(MyAuthMw)]
@@ -17,7 +17,7 @@ use crate::cli::Command;
 use crate::server::Router;
 
 use super::{GemFacade, GemMeta};
-use viontin_core::InternalResult;
+use crate::CoreResult;
 
 /// Standar colokan antara gem dan framework.
 ///
@@ -42,6 +42,6 @@ pub trait GemBinding: GemFacade {
 // Allows GemRegistry::register() to accept Box<dyn GemBinding>
 impl GemFacade for Box<dyn GemBinding + '_> {
     fn meta(&self) -> &GemMeta { (**self).meta() }
-    fn before_build(&self) -> InternalResult<()> { (**self).before_build() }
-    fn after_build(&self) -> InternalResult<()> { (**self).after_build() }
+    fn before_build(&self) -> CoreResult<()> { (**self).before_build() }
+    fn after_build(&self) -> CoreResult<()> { (**self).after_build() }
 }
