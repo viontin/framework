@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub mod redis;
+pub use redis::RedisCache;
+
 pub trait CacheDriver: std::fmt::Debug + Send + Sync {
     fn name(&self) -> &str;
     fn get(&self, key: &str) -> Option<String>;
@@ -121,6 +124,7 @@ impl Cache {
 
     pub fn memory() -> Self { Cache::with_driver(MemoryCache::new()) }
     pub fn file(path: impl Into<std::path::PathBuf>) -> Self { Cache::with_driver(FileCache::new(path)) }
+    pub fn redis(host: &str, port: u16) -> Self { Cache::with_driver(RedisCache::new(host, port)) }
     pub fn null() -> Self { Cache::with_driver(NullCache) }
     pub fn with_prefix(mut self, p: impl Into<String>) -> Self { self.prefix = p.into(); self }
     fn p(&self, k: &str) -> String { if self.prefix.is_empty() { k.to_string() } else { format!("{}:{}", self.prefix, k) } }
