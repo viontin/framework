@@ -1,6 +1,9 @@
 use std::fmt;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
+pub mod database;
+pub use database::DatabaseQueue;
+
 pub trait Job: fmt::Debug + Send + Sync {
     fn handle(self: Box<Self>) -> Result<(), String>;
     fn name(&self) -> &str { std::any::type_name_of_val(self) }
@@ -43,6 +46,11 @@ impl Queue {
 }
 
 impl Default for Queue { fn default() -> Self { Queue::new(SyncQueue) } }
+
+impl Queue {
+    pub fn sync() -> Self { Queue::new(SyncQueue) }
+    pub fn database(conn: Box<dyn crate::db::Connection>) -> Self { Queue::new(DatabaseQueue::new(conn)) }
+}
 
 // ── Queue Worker ──
 
