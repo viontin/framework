@@ -6,7 +6,7 @@
 use std::fmt;
 use std::sync::Mutex;
 use crate::db::{Connection, Value};
-use crate::queue::{self, Job, Driver};
+use crate::queue::{self, Job, Driver, JobError, QueueError};
 
 pub struct StoredJob {
     pub id: i64,
@@ -235,8 +235,8 @@ impl DatabaseQueue {
 
 impl Driver for DatabaseQueue {
     fn name(&self) -> &str { "database" }
-    fn push(&self, job: Box<dyn Job>) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+    fn push(&self, job: Box<dyn Job>) -> Result<(), QueueError> {
+        let conn = self.conn.lock().map_err(|e| QueueError::driver(e.to_string()))?;
         let now = Self::now();
         let payload = serde_json::to_string(&serde_json::json!({
             "name": job.name(),
@@ -254,11 +254,11 @@ impl Driver for DatabaseQueue {
                 Value::Int(now),
                 Value::Int(now),
             ],
-        )?;
+        ).map_err(|e| QueueError::driver(e))?;
         Ok(())
     }
-    fn schedule(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+    fn schedule(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), QueueError> {
+        let conn = self.conn.lock().map_err(|e| QueueError::driver(e.to_string()))?;
         let available = Self::now() + delay_secs as i64;
         let payload = serde_json::to_string(&serde_json::json!({
             "name": job.name(),
@@ -276,7 +276,7 @@ impl Driver for DatabaseQueue {
                 Value::Int(Self::now()),
                 Value::Int(available),
             ],
-        )?;
+        ).map_err(|e| QueueError::driver(e))?;
         Ok(())
     }
     fn pop(&self) -> Option<Box<dyn Job>> {
@@ -290,7 +290,6 @@ impl Driver for DatabaseQueue {
             queue_id: id,
             attempts: attempts_before + 1,
             max_tries: self.max_tries,
-            retry_delay_secs: self.retry_delay_secs,
             db: self as *const DatabaseQueue,
         }))
     }
@@ -301,7 +300,6 @@ struct WrappedDbJob {
     queue_id: i64,
     attempts: i64,
     max_tries: u8,
-    retry_delay_secs: u64,
     db: *const DatabaseQueue,
 }
 
@@ -315,16 +313,22 @@ impl fmt::Debug for WrappedDbJob {
 }
 
 impl Job for WrappedDbJob {
-    fn handle(self: Box<Self>) -> Result<(), String> {
+    fn handle(self: Box<Self>) -> Result<(), JobError> {
+        let inner_retries = self.inner.retries();
+        let inner_delay = self.inner.retry_delay();
+        let queue_id = self.queue_id;
+        let attempts = self.attempts;
+        let max_tries = self.max_tries;
         let result = self.inner.handle();
         if let Some(db) = unsafe { self.db.as_ref() } {
             match &result {
-                Ok(_) => { let _ = db.mark_done(self.queue_id); }
+                Ok(_) => { let _ = db.mark_done(queue_id); }
                 Err(e) => {
-                    if (self.attempts as u8) < self.max_tries {
-                        let _ = db.mark_pending(self.queue_id, self.retry_delay_secs);
+                    let effective_max = inner_retries.max(max_tries);
+                    if (attempts as u8) < effective_max {
+                        let _ = db.mark_pending(queue_id, inner_delay);
                     } else {
-                        let _ = db.mark_failed(self.queue_id, e);
+                        let _ = db.mark_failed(queue_id, &e.to_string());
                     }
                 }
             }
@@ -332,4 +336,6 @@ impl Job for WrappedDbJob {
         result
     }
     fn name(&self) -> &str { self.inner.name() }
+    fn retries(&self) -> u8 { self.inner.retries() }
+    fn retry_delay(&self) -> u64 { self.inner.retry_delay() }
 }

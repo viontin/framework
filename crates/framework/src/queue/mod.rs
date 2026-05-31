@@ -6,6 +6,57 @@ use std::sync::OnceLock;
 pub mod database;
 pub use database::DatabaseQueue;
 
+// ── Error Types ──
+
+#[derive(Debug, Clone)]
+pub struct JobError(pub String);
+
+impl JobError {
+    pub fn new(msg: impl Into<String>) -> Self { JobError(msg.into()) }
+}
+
+impl fmt::Display for JobError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<String> for JobError {
+    fn from(s: String) -> Self { JobError(s) }
+}
+
+impl From<&str> for JobError {
+    fn from(s: &str) -> Self { JobError(s.to_string()) }
+}
+
+#[derive(Debug, Clone)]
+pub enum QueueError {
+    JobFailed(String),
+    DriverError(String),
+}
+
+impl QueueError {
+    pub fn driver(msg: impl Into<String>) -> Self { QueueError::DriverError(msg.into()) }
+    pub fn job_failed(msg: impl Into<String>) -> Self { QueueError::JobFailed(msg.into()) }
+}
+
+impl fmt::Display for QueueError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QueueError::JobFailed(m) => write!(f, "job failed: {}", m),
+            QueueError::DriverError(m) => write!(f, "driver error: {}", m),
+        }
+    }
+}
+
+impl From<String> for QueueError {
+    fn from(s: String) -> Self { QueueError::DriverError(s) }
+}
+
+impl From<&str> for QueueError {
+    fn from(s: &str) -> Self { QueueError::DriverError(s.to_string()) }
+}
+
 // ── Job Registry ──
 
 static JOB_REGISTRY: OnceLock<Mutex<HashMap<String, Box<dyn JobFactory + Send + Sync>>>> = OnceLock::new();
@@ -43,14 +94,16 @@ pub fn make_job(name: &str, payload: &str) -> Option<Box<dyn Job>> {
 }
 
 pub trait Job: fmt::Debug + Send + Sync {
-    fn handle(self: Box<Self>) -> Result<(), String>;
+    fn handle(self: Box<Self>) -> Result<(), JobError>;
     fn name(&self) -> &str { std::any::type_name_of_val(self) }
+    fn retries(&self) -> u8 { 0 }
+    fn retry_delay(&self) -> u64 { 5 }
 }
 
 pub trait Driver: fmt::Debug + Send + Sync {
     fn name(&self) -> &str;
-    fn push(&self, job: Box<dyn Job>) -> Result<(), String>;
-    fn schedule(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), String>;
+    fn push(&self, job: Box<dyn Job>) -> Result<(), QueueError>;
+    fn schedule(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), QueueError>;
     fn pop(&self) -> Option<Box<dyn Job>> { None }
 }
 
@@ -59,8 +112,10 @@ pub struct SyncQueue;
 
 impl Driver for SyncQueue {
     fn name(&self) -> &str { "sync" }
-    fn push(&self, job: Box<dyn Job>) -> Result<(), String> { job.handle() }
-    fn schedule(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), String> {
+    fn push(&self, job: Box<dyn Job>) -> Result<(), QueueError> {
+        job.handle().map_err(|e| QueueError::JobFailed(e.to_string()))
+    }
+    fn schedule(&self, delay_secs: u64, job: Box<dyn Job>) -> Result<(), QueueError> {
         if delay_secs > 0 {
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(delay_secs));
@@ -68,7 +123,7 @@ impl Driver for SyncQueue {
             });
             Ok(())
         } else {
-            job.handle()
+            job.handle().map_err(|e| QueueError::JobFailed(e.to_string()))
         }
     }
 }
@@ -79,8 +134,8 @@ pub struct Queue { driver: Box<dyn Driver>, }
 impl Queue {
     pub fn new(driver: impl Driver + 'static) -> Self { Queue { driver: Box::new(driver) } }
     pub fn driver(&self) -> &dyn Driver { self.driver.as_ref() }
-    pub fn push(&self, job: impl Job + 'static) -> Result<(), String> { self.driver.push(Box::new(job)) }
-    pub fn schedule(&self, delay: u64, job: impl Job + 'static) -> Result<(), String> { self.driver.schedule(delay, Box::new(job)) }
+    pub fn push(&self, job: impl Job + 'static) -> Result<(), QueueError> { self.driver.push(Box::new(job)) }
+    pub fn schedule(&self, delay: u64, job: impl Job + 'static) -> Result<(), QueueError> { self.driver.schedule(delay, Box::new(job)) }
 }
 
 impl Default for Queue { fn default() -> Self { Queue::new(SyncQueue) } }
@@ -217,9 +272,9 @@ mod tests {
     use super::*;
 
     #[derive(Debug)]
-    struct TestJob(&'static str, Result<(), String>);
+    struct TestJob(&'static str, Result<(), JobError>);
     impl Job for TestJob {
-        fn handle(self: Box<Self>) -> Result<(), String> { self.1.clone() }
+        fn handle(self: Box<Self>) -> Result<(), JobError> { self.1.clone() }
         fn name(&self) -> &str { self.0 }
     }
 
@@ -236,9 +291,9 @@ mod tests {
     #[test]
     fn test_sync_queue_push_failure() {
         let queue = Queue::sync();
-        let result = queue.push(TestJob("fail", Err("oops".into())));
+        let result = queue.push(TestJob("fail", Err(JobError("oops".into()))));
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "oops");
+        assert!(format!("{}", result.unwrap_err()).contains("oops"));
     }
 
     #[test]
@@ -308,7 +363,43 @@ mod tests {
             .with_max_tries(3)
             .with_sleep(500)
             .with_timeout(10);
-        // Just verify construction works — no panic
         worker.run_once();
+    }
+
+    #[test]
+    fn test_job_retries_default() {
+        let job = TestJob("default", Ok(()));
+        assert_eq!(job.retries(), 0);
+        assert_eq!(job.retry_delay(), 5);
+    }
+
+    #[derive(Debug)]
+    struct RetryJob;
+    impl Job for RetryJob {
+        fn handle(self: Box<Self>) -> Result<(), JobError> { Err(JobError("retry me".into())) }
+        fn name(&self) -> &str { "retry-job" }
+        fn retries(&self) -> u8 { 3 }
+        fn retry_delay(&self) -> u64 { 10 }
+    }
+
+    #[test]
+    fn test_job_custom_retries() {
+        let job = RetryJob;
+        assert_eq!(job.retries(), 3);
+        assert_eq!(job.retry_delay(), 10);
+    }
+
+    #[test]
+    fn test_job_error_display() {
+        let err = JobError("something went wrong".into());
+        assert_eq!(format!("{}", err), "something went wrong");
+    }
+
+    #[test]
+    fn test_queue_error_display() {
+        let err = QueueError::driver("connection lost");
+        assert!(format!("{}", err).contains("connection lost"));
+        let failed = QueueError::job_failed("timeout");
+        assert!(format!("{}", failed).contains("timeout"));
     }
 }
