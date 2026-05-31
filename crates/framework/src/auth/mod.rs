@@ -1,6 +1,11 @@
 use std::collections::HashMap;
+use std::fmt;
 use crate::support::hash::SimpleHasher;
 use crate::support::Hasher;
+
+pub mod jwt;
+
+pub use jwt::{JwtGuard, TokenClaims};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AuthResult { Success, Failure(String) }
@@ -30,9 +35,13 @@ pub struct BasicGuard {
     hasher: Box<dyn Hasher>,
 }
 
-impl std::fmt::Debug for BasicGuard {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BasicGuard").field("name", &self.name).field("current_user", &self.current_user).finish()
+impl fmt::Debug for BasicGuard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BasicGuard")
+            .field("name", &self.name)
+            .field("current_user", &self.current_user)
+            .field("hasher", &"..")
+            .finish()
     }
 }
 
@@ -58,13 +67,8 @@ impl AuthGuard for BasicGuard {
     fn logout(&mut self) { self.current_user = None; }
 }
 
+#[derive(Debug)]
 pub struct SessionGuard { guard: Box<dyn AuthGuard>, }
-
-impl std::fmt::Debug for SessionGuard {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SessionGuard").field("guard", &self.guard.name()).finish()
-    }
-}
 
 impl SessionGuard {
     pub fn new(guard: impl AuthGuard + 'static) -> Self { SessionGuard { guard: Box::new(guard) } }
@@ -79,6 +83,32 @@ impl AuthGuard for SessionGuard {
 }
 
 #[derive(Debug)]
+pub struct TokenGuard {
+    name: String,
+    current_user: Option<String>,
+    valid_tokens: Vec<String>,
+}
+
+impl TokenGuard {
+    pub fn new(name: impl Into<String>, tokens: Vec<String>) -> Self {
+        TokenGuard { name: name.into(), current_user: None, valid_tokens: tokens }
+    }
+}
+
+impl AuthGuard for TokenGuard {
+    fn name(&self) -> &str { &self.name }
+    fn validate(&self, credentials: &HashMap<String, String>) -> AuthResult {
+        match credentials.get("token") {
+            Some(token) if self.valid_tokens.contains(token) => AuthResult::Success,
+            _ => AuthResult::fail("Invalid token"),
+        }
+    }
+    fn user_id(&self) -> Option<String> { self.current_user.clone() }
+    fn set_user(&mut self, id: String) { self.current_user = Some(id); }
+    fn logout(&mut self) { self.current_user = None; }
+}
+
+#[derive(Debug)]
 pub struct Auth { guards: HashMap<String, Box<dyn AuthGuard>>, default: String, }
 
 impl Auth {
@@ -89,6 +119,6 @@ impl Auth {
         self.guards.get(&self.default).map_or_else(|| AuthResult::fail("No guard"), |g| g.validate(&credentials))
     }
     pub fn user(&self) -> Option<String> { self.guards.get(&self.default).and_then(|g| g.user_id()) }
-    pub fn check(&self) -> bool { self.user().is_some() }
+    pub fn is_authenticated(&self) -> bool { self.user().is_some() }
 }
 impl Default for Auth { fn default() -> Self { Self::new() } }

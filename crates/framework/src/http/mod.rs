@@ -4,6 +4,9 @@
 //! a Tier 1 (web framework) concern. Other tiers do not need them.
 
 pub mod form_request;
+pub mod uploads;
+
+pub use uploads::{UploadedFile, MultipartData, parse_multipart, is_multipart, extract_boundary};
 
 #[cfg(feature = "http-client")]
 pub mod client;
@@ -329,6 +332,33 @@ impl Request {
     }
     pub fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T, String> {
         serde_json::from_slice(&self.body).map_err(|e| format!("JSON parse error: {}", e))
+    }
+    pub fn file(&self, name: &str) -> Option<UploadedFile> {
+        self.files().ok()?.remove(name)
+    }
+    pub fn files(&self) -> Result<HashMap<String, UploadedFile>, String> {
+        let ct = self.headers.get("content-type").map(|s| s.to_string());
+        if !is_multipart(ct.as_deref()) {
+            return Ok(HashMap::new());
+        }
+        let boundary = extract_boundary(ct.as_deref().unwrap_or(""))
+            .ok_or_else(|| "No boundary in multipart content-type".to_string())?;
+        let data = parse_multipart(&self.body, &boundary)?;
+        Ok(data.files)
+    }
+    pub fn form_field(&self, name: &str) -> Option<String> {
+        let ct = self.headers.get("content-type").map(|s| s.to_string());
+        if is_multipart(ct.as_deref()) {
+            extract_boundary(ct.as_deref().unwrap_or(""))
+                .and_then(|boundary| parse_multipart(&self.body, &boundary).ok())
+                .and_then(|d| d.fields.get(name).cloned())
+        } else {
+            self.body_str()
+                .split('&')
+                .find(|p| p.starts_with(&format!("{}=", name)))
+                .and_then(|p| p.split('=').nth(1))
+                .map(|s| url_decode(s).to_string())
+        }
     }
     pub fn cookie(&self, key: &str) -> Option<String> {
         self.cookies().remove(key)

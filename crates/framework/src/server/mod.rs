@@ -119,12 +119,30 @@ impl Router {
             request.params = route_params(&entry.path, &request.uri.path);
             let handler = entry.handler.clone();
             let handler_fn = move |req: &mut Request| -> Response { handler(std::mem::take(req)) };
-            if let Some(ref chain) = entry.middlewares {
-                chain.apply(&mut request, &handler_fn)
-            } else if let Some(ref global) = self.global_middlewares {
-                global.apply(&mut request, &handler_fn)
-            } else {
-                handler_fn(&mut request)
+
+            let has_route_mw = entry.middlewares.is_some();
+            let has_global_mw = self.global_middlewares.is_some();
+
+            match (has_global_mw, has_route_mw) {
+                (true, true) => {
+                    let global = self.global_middlewares.as_ref().unwrap();
+                    let route_mw = entry.middlewares.as_ref().unwrap();
+                    let global_handler = move |req: &mut Request| -> Response {
+                        route_mw.apply(req, &handler_fn)
+                    };
+                    global.apply(&mut request, &global_handler)
+                }
+                (true, false) => {
+                    let global = self.global_middlewares.as_ref().unwrap();
+                    global.apply(&mut request, &handler_fn)
+                }
+                (false, true) => {
+                    let route_mw = entry.middlewares.as_ref().unwrap();
+                    route_mw.apply(&mut request, &handler_fn)
+                }
+                (false, false) => {
+                    handler_fn(&mut request)
+                }
             }
         } else if self.routes.iter().any(|r| path_matches(&r.path, &path)) {
             // Path matches but method doesn't
