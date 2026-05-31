@@ -3,9 +3,8 @@
 //! Database types come from viontin-orm.
 
 pub mod query_log;
-pub mod factory;
 
-pub use factory::{Factory, Seeder, run_seeders, unique, random_from};
+pub use viontin_orm::{Factory, Seeder, run_seeders, unique, random_from};
 
 // Re-export from viontin-orm
 pub use viontin_orm::{Value, Row, DbConfig, Connection, ConnectionPool, Transaction, with_transaction};
