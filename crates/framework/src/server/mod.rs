@@ -10,12 +10,18 @@ pub use server::{Server, is_shutdown_requested, request_shutdown};
 pub type IoResult<T> = Result<T, String>;
 pub type Handler = Arc<dyn Fn(Request) -> Response + Send + Sync>;
 
+/// Extension type stored on Request after route matching.
+/// Used by `route::current_name()` to retrieve the matched route name.
+#[derive(Debug, Clone)]
+pub struct RouteName(pub String);
+
 #[derive(Clone)]
 struct RouteEntry {
     method: Method,
     path: String,
     handler: Handler,
     middlewares: Option<Arc<MiddlewareChain>>,
+    name: Option<String>,
 }
 
 #[derive(Default)]
@@ -29,20 +35,25 @@ impl Router {
     pub fn new() -> Self { Router { routes: Vec::new(), global_middlewares: None, not_found: None } }
 
     fn add_route(mut self, method: Method, path: &str, h: Handler, mw: Option<MiddlewareChain>) -> Self {
-        self.routes.push(RouteEntry { method, path: path.into(), handler: h, middlewares: mw.map(Arc::new) });
+        self.routes.push(RouteEntry { method, path: path.into(), handler: h, middlewares: mw.map(Arc::new), name: None });
         self
     }
 
     /// Internal route addition without middleware wrapping (used by route module).
     pub fn add_route_internal(mut self, method: Method, path: &str, h: Handler) -> Self {
-        self.routes.push(RouteEntry { method, path: path.into(), handler: h, middlewares: None });
+        self.routes.push(RouteEntry { method, path: path.into(), handler: h, middlewares: None, name: None });
         self
     }
 
-    /// Push a route directly (used by route module's apply_to_router).
+    /// Push a route directly (used by route module's build_router).
     /// Takes `&mut self` instead of consuming self.
     pub fn push_route(&mut self, method: Method, path: String, handler: Handler) {
-        self.routes.push(RouteEntry { method, path, handler, middlewares: None });
+        self.routes.push(RouteEntry { method, path, handler, middlewares: None, name: None });
+    }
+
+    /// Push a route with an optional name for URL generation.
+    pub fn push_named_route(&mut self, method: Method, path: String, handler: Handler, name: Option<String>) {
+        self.routes.push(RouteEntry { method, path, handler, middlewares: None, name });
     }
 
     pub fn get(self, path: &str, h: Handler) -> Self { self.add_route(Method::Get, path, h, None) }
@@ -117,6 +128,9 @@ impl Router {
         let path = request.uri.path.clone();
         if let Some(entry) = self.find_route(&request.method, &path) {
             request.params = route_params(&entry.path, &request.uri.path);
+            if let Some(ref name) = entry.name {
+                request.set_extension(RouteName(name.clone()));
+            }
             let handler = entry.handler.clone();
             let handler_fn = move |req: &mut Request| -> Response { handler(std::mem::take(req)) };
 
@@ -154,15 +168,15 @@ impl Router {
     }
 }
 
-fn is_wildcard(s: &str) -> bool {
+pub(crate) fn is_wildcard(s: &str) -> bool {
     s == "*" || s.starts_with('*')
 }
 
-fn wildcard_name(s: &str) -> &str {
+pub(crate) fn wildcard_name(s: &str) -> &str {
     if s == "*" { "path" } else { &s[1..] }
 }
 
-fn path_matches(p: &str, r: &str) -> bool {
+pub(crate) fn path_matches(p: &str, r: &str) -> bool {
     let pp: Vec<&str> = p.split('/').collect();
     let rp: Vec<&str> = r.split('/').collect();
     if let Some(wild_pos) = pp.iter().position(|&s| is_wildcard(s)) && pp.len() - 1 <= rp.len() {
@@ -171,7 +185,7 @@ fn path_matches(p: &str, r: &str) -> bool {
     pp.len() == rp.len() && pp.iter().zip(rp.iter()).all(|(a, b)| a.starts_with(':') || a == b)
 }
 
-fn route_params(pat: &str, req: &str) -> HashMap<String, String> {
+pub(crate) fn route_params(pat: &str, req: &str) -> HashMap<String, String> {
     let mut p = HashMap::new();
     let pp: Vec<&str> = pat.split('/').collect();
     let rp: Vec<&str> = req.split('/').collect();

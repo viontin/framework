@@ -36,7 +36,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use crate::http::{Method, Request, Response};
 use crate::middleware::{Middleware, MiddlewareChain};
-use crate::server::Handler;
+use crate::server::{Handler, RouteName};
 use crate::middleware::Next;
 
 // ──────────────────────────────────────────────
@@ -63,6 +63,7 @@ struct RegisteredRoute {
     method: Method,
     path: String,
     handler: Handler,
+    name: Option<String>,
 }
 
 struct GroupContext {
@@ -98,18 +99,18 @@ impl RouteManager {
         self.group_stack.last().map(|g| g.name_prefix.as_str()).unwrap_or("")
     }
 
-    fn register(&mut self, method: Method, path: String, handler: Handler) {
-        self.routes.push(RegisteredRoute { method, path, handler });
+    fn register(&mut self, method: Method, path: String, handler: Handler, name: Option<String>) {
+        self.routes.push(RegisteredRoute { method, path, handler, name });
     }
 
     fn register_name(&mut self, name: &str, path: &str) {
         self.route_names.insert(name.to_string(), path.to_string());
     }
 
-    fn drain(&mut self) -> Vec<(Method, String, Handler)> {
+    fn drain(&mut self) -> Vec<(Method, String, Handler, Option<String>)> {
         std::mem::take(&mut self.routes)
             .into_iter()
-            .map(|r| (r.method, r.path, r.handler))
+            .map(|r| (r.method, r.path, r.handler, r.name))
             .collect()
     }
 
@@ -223,9 +224,10 @@ impl RouteBuilder {
                 }
             });
 
-            with_mgr(|m| m.register(self.method.clone(), self.path.clone(), final_handler));
+            let route_name = self.route_name.clone();
+            with_mgr(|m| m.register(self.method.clone(), self.path.clone(), final_handler, route_name));
 
-            // Store route name if provided
+            // Store route name if provided (also kept in route_names map for url()/has() queries)
             if let Some(ref name) = self.route_name {
                 with_mgr(|m| m.register_name(name, &self.path));
             }
@@ -263,7 +265,11 @@ impl Drop for RouteBuilder {
                         final_handler
                     }
                 });
-                with_mgr(|m| m.register(self.method.clone(), self.path.clone(), fh2));
+                let route_name = self.route_name.clone();
+                if let Some(ref name) = route_name {
+                    with_mgr(|m| m.register_name(name, &self.path));
+                }
+                with_mgr(|m| m.register(self.method.clone(), self.path.clone(), fh2, route_name));
             }
         }
     }
@@ -481,8 +487,8 @@ pub fn build_router() {
 
     // 2. Process runtime-registered routes (route::get, route::group)
     let runtime_routes = with_mgr(|m| m.drain());
-    for (method, path, handler) in runtime_routes {
-        router.push_route(method, path, handler);
+    for (method, path, handler, name) in runtime_routes {
+        router.push_named_route(method, path, handler, name);
     }
 
     if let Ok(mut g) = global_router().lock() {
@@ -498,4 +504,74 @@ pub fn take_router() -> Option<crate::server::Router> {
     } else {
         None
     }
+}
+
+// ──────────────────────────────────────────────
+//  NAMED ROUTE API — URL generation & query
+// ──────────────────────────────────────────────
+
+/// Generate a URL for a named route.
+///
+/// Returns `None` if no route with that name is registered.
+///
+/// ```ignore
+/// let url = route::url("admin.users").unwrap();
+/// // => "/admin/users"
+/// ```
+pub fn url(name: &str) -> Option<String> {
+    with_mgr(|m| m.route_names.get(name).cloned())
+}
+
+/// Generate a URL for a named route, substituting parameters into `:param` segments.
+///
+/// ```ignore
+/// let url = route::url_with("users.show", &[("id", "42")]).unwrap();
+/// // => "/users/42"
+/// ```
+pub fn url_with(name: &str, params: &[(&str, &str)]) -> Option<String> {
+    let mut path = url(name)?;
+    for (key, val) in params {
+        path = path.replace(&format!(":{}", key), val);
+    }
+    Some(path)
+}
+
+/// Check if a named route exists.
+///
+/// ```ignore
+/// if route::has("users.index") { ... }
+/// ```
+pub fn has(name: &str) -> bool {
+    with_mgr(|m| m.route_names.contains_key(name))
+}
+
+/// Return all registered route names and their path templates, sorted by name.
+///
+/// ```ignore
+/// for (name, path) in route::all() {
+///     println!("{} → {}", name, path);
+/// }
+/// ```
+pub fn all() -> Vec<(String, String)> {
+    with_mgr(|m| {
+        let mut entries: Vec<(String, String)> = m.route_names.iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        entries
+    })
+}
+
+/// Get the name of the route that matched the current request.
+///
+/// Returns `None` if the request was not matched by any named route
+/// (e.g., 404, static file, or the route was registered without a name).
+///
+/// ```ignore
+/// if let Some(name) = route::current_name(&req) {
+///     output.line(&format!("Current route: {}", name));
+/// }
+/// ```
+pub fn current_name(req: &Request) -> Option<String> {
+    req.extension::<RouteName>().map(|n| n.0)
 }

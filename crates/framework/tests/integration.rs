@@ -139,4 +139,96 @@ fn test_router_post() {
         assert!(body.contains("Alice"));
         assert!(body.contains("30"));
     }
+
+    // ── Named route URL generation ──
+
+    #[test]
+    fn test_named_route_url() {
+        route::get("/users", Arc::new(|_| Response::ok())).name("users.index").register();
+        route::get("/users/:id", Arc::new(|_| Response::ok())).name("users.show").register();
+        route::get("/posts/:year/:slug", Arc::new(|_| Response::ok())).name("posts.show").register();
+        viontin_framework::route::build_router();
+
+        assert_eq!(route::url("users.index"), Some("/users".to_string()));
+        assert_eq!(route::url("users.show"), Some("/users/:id".to_string()));
+        assert_eq!(route::url("nonexistent"), None);
+    }
+
+    #[test]
+    fn test_named_route_url_with_params() {
+        route::get("/users/:id", Arc::new(|_| Response::ok())).name("users.show").register();
+        route::get("/posts/:year/:slug", Arc::new(|_| Response::ok())).name("posts.show").register();
+        viontin_framework::route::build_router();
+
+        assert_eq!(
+            route::url_with("users.show", &[("id", "42")]),
+            Some("/users/42".to_string())
+        );
+        assert_eq!(
+            route::url_with("posts.show", &[("year", "2024"), ("slug", "hello-world")]),
+            Some("/posts/2024/hello-world".to_string())
+        );
+    }
+
+    #[test]
+    fn test_named_route_has() {
+        route::get("/", Arc::new(|_| Response::ok())).name("home").register();
+        viontin_framework::route::build_router();
+
+        assert!(route::has("home"));
+        assert!(!route::has("nope"));
+    }
+
+    #[test]
+    fn test_named_route_all() {
+        route::get("/a", Arc::new(|_| Response::ok())).name("alpha").register();
+        route::get("/b", Arc::new(|_| Response::ok())).name("beta").register();
+        viontin_framework::route::build_router();
+
+        let all = route::all();
+        assert!(all.contains(&("alpha".to_string(), "/a".to_string())));
+        assert!(all.contains(&("beta".to_string(), "/b".to_string())));
+    }
+
+    #[test]
+    fn test_named_route_current_name() {
+        use std::sync::Mutex;
+        let captured = Arc::new(Mutex::new(None::<String>));
+        let captured2 = captured.clone();
+        route::get("/dashboard", Arc::new(move |req| {
+            let name: Option<viontin_framework::server::RouteName> = req.extension();
+            *captured2.lock().unwrap() = name.map(|n| n.0);
+            Response::ok()
+        })).name("dashboard").register();
+        viontin_framework::route::build_router();
+        let router = viontin_framework::route::take_router().unwrap();
+
+        let req = viontin_framework::http::Request::new(
+            viontin_framework::http::Method::Get,
+            viontin_framework::http::Uri::parse("/dashboard"),
+            viontin_framework::http::Headers::new(),
+            Vec::new(),
+        );
+        let _resp = router.handle(req);
+        assert_eq!(captured.lock().unwrap().as_deref(), Some("dashboard"));
+    }
+
+    #[test]
+    fn test_named_route_group_auto_naming() {
+        route::group()
+            .prefix("/admin")
+            .name("admin")
+            .routes(|r| {
+                r.get("/users", Arc::new(|_| Response::ok()));
+                r.get("/users/:id", Arc::new(|_| Response::ok()));
+            });
+        viontin_framework::route::build_router();
+
+        assert_eq!(route::url("admin.users"), Some("/admin/users".to_string()));
+        assert_eq!(route::url("admin.users.id"), Some("/admin/users/:id".to_string()));
+        assert_eq!(
+            route::url_with("admin.users.id", &[("id", "7")]),
+            Some("/admin/users/7".to_string())
+        );
+    }
 }
